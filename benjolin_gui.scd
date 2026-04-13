@@ -131,9 +131,9 @@ s.waitForBoot {
         // Resonance — anti-logarithmic curve (per manual)
         rq = (0.01 ** res).clip(0.005, 1.0);
 
-        lpOut    = RLPF.ar(filterIn, filterCutoff, rq);
-        hpOut    = RHPF.ar(filterIn, filterCutoff, rq);
-        bpOut    = BPF.ar(filterIn,  filterCutoff, rq * 0.5);
+        lpOut    = BLowPass.ar(filterIn, filterCutoff, rq);
+        hpOut    = BHiPass.ar(filterIn, filterCutoff, rq);
+        bpOut    = BBandPass.ar(filterIn,  filterCutoff, rq);
         filtered = Select.ar(filterMode, [lpOut, bpOut, hpOut]).tanh;
 
         env  = EnvGen.kr(Env.asr(0.01, 1, 0.05), gate, doneAction: 2);
@@ -157,7 +157,8 @@ s.waitForBoot {
         var knobs   = ();  // symbol → EZKnob
         var routes  = ();  // symbol → PopUpMenu
         var screen  = Window.screenBounds;
-        var winW    = 720, winH = 715;
+        var winW    = 720, winH = 750;
+        var presetWinW = 290, presetWinH = 390;
         var presets, presetPath, captureState, recallState, refreshSlot, refreshAll;
         var activeSlot = nil;
         var sourceNames = ["NONE", "TRI A", "TRI B",
@@ -204,7 +205,7 @@ s.waitForBoot {
 
         win = Window(
             "Benjolin",
-            Rect((screen.width - winW)/2, (screen.height - winH)/2, winW, winH)
+            Rect((screen.width - winW - 8 - presetWinW) / 2, (screen.height - winH) / 2, winW, winH)
         ).background_(Color(0.07, 0.07, 0.09)).front;
 
         // Title
@@ -243,7 +244,7 @@ s.waitForBoot {
 
         mkKnob.(\oscA, 0.1, 10000, \exp, 0,     200,    20,  60);
         mkKnob.(\oscB, 0.1, 10000, \exp, 0,     271.5,  115, 60);
-        mkKnob.(\freq, 20,  18000, \exp, 0,     800,    315, 60);
+        mkKnob.(\freq, 20,  18000, \exp, 0,     5000,    315, 60);
         mkKnob.(\res,  0,   1,     \lin, 0.001, 0.5,    410, 60);
 
         // Filter mode buttons
@@ -269,37 +270,37 @@ s.waitForBoot {
         };
         filterBtns[0].value_(1);
 
-        // ── Row 2: Rungler mod + External mod (y=165) ───────────
-        mkLabel.("── RUNGLER MOD ──────", 20,  158);
-        mkLabel.("── EXTERNAL MOD ─── route ↓ ──────────", 310, 158);
+        // ── Row 2: Rungler mod + External mod ───────────────────
+        mkLabel.("── RUNGLER MOD ──────", 20,  165);
+        mkLabel.("── EXTERNAL MOD ─── route ↓ ──────────", 310, 165);
 
-        mkKnob.(\runA, 0, 1, \lin, 0.001, 0.3,  20,  170);
-        mkKnob.(\runB, 0, 1, \lin, 0.001, 0.3,  115, 170);
-        mkKnob.(\runF, 0, 1, \lin, 0.001, 0.4,  210, 170);
-        mkKnob.(\modA, 0, 1, \lin, 0.001, 0.2,  315, 170);
-        mkKnob.(\modB, 0, 1, \lin, 0.001, 0.2,  410, 170);
-        mkKnob.(\modF, 0, 1, \lin, 0.001, 0.2,  505, 170);
+        mkKnob.(\runA, 0, 1, \lin, 0.001, 0.3,  20,  177);
+        mkKnob.(\runB, 0, 1, \lin, 0.001, 0.3,  115, 177);
+        mkKnob.(\runF, 0, 1, \lin, 0.001, 0.4,  210, 177);
+        mkKnob.(\modA, 0, 1, \lin, 0.001, 0.2,  315, 177);
+        mkKnob.(\modB, 0, 1, \lin, 0.001, 0.2,  410, 177);
+        mkKnob.(\modF, 0, 1, \lin, 0.001, 0.2,  505, 177);
 
         // Route selectors — below each MOD knob
         // Defaults: modA←TriB(2), modB←TriA(1), modF←TriB(2)
-        mkRoute.(\modARoute, 2, 315, 264);
-        mkRoute.(\modBRoute, 1, 410, 264);
-        mkRoute.(\modFRoute, 2, 505, 264);
+        mkRoute.(\modARoute, 2, 315, 271);
+        mkRoute.(\modBRoute, 1, 410, 271);
+        mkRoute.(\modFRoute, 2, 505, 271);
 
-        // ── Row 3: Loop + Output (y=300) ────────────────────────
-        mkLabel.("── LOOP ─────────────", 20,  295);
-        mkLabel.("── OUTPUT ─────────────────────────────", 400, 295);
+        // ── Row 3: Loop + Output ────────────────────────────────
+        mkLabel.("── LOOP ─────────────", 20,  306);
+        mkLabel.("── OUTPUT ─────────────────────────────", 400, 306);
 
-        mkKnob.(\loop, -1, 1, \lin, 0.001, 0.0,  20,  308);
-        mkKnob.(\amp,   0, 1, \lin, 0.001, 0.35, 600, 308);
+        mkKnob.(\loop,  0, 1, \lin, 0.001, 0.0,  20,  319);
+        mkKnob.(\amp,   0, 1, \lin, 0.001, 0.86, 600, 319);
 
         // Loop switch
-        StaticText(win, Rect(118, 308, 82, 13))
+        StaticText(win, Rect(118, 319, 82, 13))
             .string_("LOOP SW")
             .font_(Font.sansSerif(9))
             .stringColor_(Color(0.5, 0.5, 0.5))
             .align_(\center);
-        loopSwBtn = Button(win, Rect(118, 324, 82, 34))
+        loopSwBtn = Button(win, Rect(118, 335, 82, 34))
             .states_([
                 ["LOOP OFF", Color(0.55, 0.55, 0.55), Color(0.13, 0.13, 0.15)],
                 ["LOOP ON",  Color(0.3,  1.0,  0.5),  Color(0.08, 0.2,  0.1) ]
@@ -308,10 +309,10 @@ s.waitForBoot {
             .action_({ |btn| synth !? { synth.set(\loopSwitch, btn.value) } });
 
         // ── Row 4: Chaos Automaton ──────────────────────────────
-        mkLabel.("── CHAOS AUTOMATON ─── source ↓ ──────────────", 20, 405);
+        mkLabel.("── CHAOS AUTOMATON ─── source ↓ ──────────────", 20, 424);
 
         chaosBtns = ["OFF", "HÉNON", "GBMAN", "STDMAP"].collect({ |label, i|
-            Button(win, Rect(20 + (i * 93), 420, 85, 28))
+            Button(win, Rect(20 + (i * 93), 439, 85, 28))
                 .states_([
                     [label, Color(0.5,  0.5,  0.5),  Color(0.13, 0.13, 0.15)],
                     [label, Color(1.0,  0.75, 0.2),  Color(0.22, 0.14, 0.04)]
@@ -329,29 +330,29 @@ s.waitForBoot {
         };
 
         // Rate knob (right side, same row as source buttons)
-        mkKnob.(\chaosRate, 0.1, 200, \exp, 0, 5.0, 600, 410);
+        mkKnob.(\chaosRate, 0.1, 200, \exp, 0, 5.0, 600, 429);
 
         // Depth knobs — osc FM is direct pitch chaos; run knobs offset Rungler depth
-        mkLabel.("── CHAOS DEPTH ─── osc = direct FM   run = Rungler depth ──", 20, 460);
-        mkKnob.(\chaosOscA, 0, 3, \lin, 0.01,  0.0,  20, 472);
-        mkKnob.(\chaosOscB, 0, 3, \lin, 0.01,  0.0, 115, 472);
-        mkKnob.(\chaosRunA, 0, 1, \lin, 0.001, 0.0, 210, 472);
-        mkKnob.(\chaosRunB, 0, 1, \lin, 0.001, 0.0, 305, 472);
-        mkKnob.(\chaosRunF, 0, 1, \lin, 0.001, 0.0, 400, 472);
+        mkLabel.("── CHAOS DEPTH ─── osc = direct FM   run = Rungler depth ──", 20, 479);
+        mkKnob.(\chaosOscA, 0, 3, \lin, 0.01,  0.0,  20, 491);
+        mkKnob.(\chaosOscB, 0, 3, \lin, 0.01,  0.0, 115, 491);
+        mkKnob.(\chaosRunA, 0, 1, \lin, 0.001, 0.0, 210, 491);
+        mkKnob.(\chaosRunB, 0, 1, \lin, 0.001, 0.0, 305, 491);
+        mkKnob.(\chaosRunF, 0, 1, \lin, 0.001, 0.0, 400, 491);
 
         // ── Row 5: Spatial ──────────────────────────────────────
-        mkLabel.("── SPATIAL ─── pan + width + mod source ───────────────", 20, 572);
+        mkLabel.("── SPATIAL ─── pan + width + mod source ───────────────", 20, 596);
 
-        mkKnob.(\pan,      -1, 1, \lin, 0.001, 0.0,  20, 585);
-        mkKnob.(\panMod,  0, 1, \lin, 0.001, 0.0, 115, 585);
+        mkKnob.(\pan,      -1, 1, \lin, 0.001, 0.0,  20, 609);
+        mkKnob.(\panMod,  0, 1, \lin, 0.001, 1.0, 115, 609);
 
-        StaticText(win, Rect(315, 585, 160, 13))
+        StaticText(win, Rect(315, 609, 160, 13))
             .string_("PAN MOD SOURCE")
             .font_(Font.sansSerif(9))
             .stringColor_(Color(0.5, 0.5, 0.5));
         // sourceNames (8 internal) + CHAOS (index 8) — added to routes for auto capture/recall
         routes.put(\panRoute,
-            PopUpMenu(win, Rect(315, 601, 160, 20))
+            PopUpMenu(win, Rect(315, 625, 160, 20))
                 .items_(sourceNames ++ ["CHAOS"])
                 .value_(0)
                 .font_(Font.sansSerif(9))
@@ -359,7 +360,7 @@ s.waitForBoot {
         );
 
         // Bottom buttons
-        Button(win, Rect(20, 688, 120, 22))
+        Button(win, Rect(20, 714, 120, 22))
             .states_([["⚡ Randomize", Color(1, 0.9, 0.2), Color(0.14, 0.13, 0.08)]])
             .font_(Font.sansSerif(10))
             .action_({
@@ -370,7 +371,7 @@ s.waitForBoot {
                 };
             });
 
-        Button(win, Rect(152, 688, 90, 22))
+        Button(win, Rect(152, 714, 90, 22))
             .states_([["↺ Reset", Color(0.7, 0.7, 1), Color(0.11, 0.11, 0.18)]])
             .font_(Font.sansSerif(10))
             .action_({
@@ -446,23 +447,23 @@ s.waitForBoot {
 
         refreshAll = { 16.do { |i| refreshSlot.(i) } };
 
-        // ── Preset window ────────────────────────────────────────
+        // ── Preset window — opens to the right of the main window ──
         presetWin = Window(
             "Benjolin Presets",
             Rect(
-                (screen.width - winW) / 2,
-                (screen.height - winH) / 2 + winH + 8,
-                winW, 200
+                (screen.width - winW - 8 - presetWinW) / 2 + winW + 8,
+                (screen.height - presetWinH) / 2,
+                presetWinW, presetWinH
             )
         ).background_(Color(0.07, 0.07, 0.09)).front;
 
-        StaticText(presetWin, Rect(20, 10, 300, 18))
+        StaticText(presetWin, Rect(15, 10, 180, 18))
             .string_("PRESET MATRIX")
             .font_(Font.sansSerif(12, true))
             .stringColor_(Color.white);
 
         // CLEAR ALL — two-click confirm: first click arms, second click executes
-        Button(presetWin, Rect(winW - 322, 8, 140, 26))
+        Button(presetWin, Rect(15, 36, 120, 24))
             .states_([
                 ["✖  CLEAR ALL",  Color(1,    0.5,  0.5),  Color(0.18, 0.08, 0.08)],
                 ["CONFIRM CLEAR", Color(1.0,  0.25, 0.25), Color(0.30, 0.05, 0.05)]
@@ -482,20 +483,20 @@ s.waitForBoot {
             });
 
         // SAVE ARMED toggle
-        saveModeBtn = Button(presetWin, Rect(winW - 168, 8, 148, 26))
+        saveModeBtn = Button(presetWin, Rect(148, 36, 127, 24))
             .states_([
                 ["✎  SAVE: OFF",   Color(0.5,  0.5,  0.5),  Color(0.13, 0.13, 0.15)],
                 ["✎  SAVE: ARMED", Color(1.0,  0.35, 0.35), Color(0.22, 0.07, 0.07)]
             ])
             .font_(Font.sansSerif(10, true));
 
-        // 4×4 grid — 16 slots
+        // 2×8 grid — 16 slots
         slotBtns = Array.new(16);
         16.do { |idx|
-            var col = idx % 4;
-            var row = idx / 4;
+            var col = idx % 2;
+            var row = idx / 2;
             var btn = Button(presetWin,
-                Rect(20 + (col * 172), 44 + (row * 38), 162, 30));
+                Rect(15 + (col * 135), 70 + (row * 38), 125, 30));
             btn.font_(Font.sansSerif(10, true));
             slotBtns.add(btn);
             refreshSlot.(idx);
