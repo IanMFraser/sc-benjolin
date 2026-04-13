@@ -32,9 +32,9 @@ s.waitForBoot {
           modARoute=2, modBRoute=1, modFRoute=2,
           freq=800, res=0.5,
           loop=0.0, loopSwitch=0,
-          filterMode=0, amp=0.35,
+          filterMode=0, amp=0.86,
           chaosSource=0, chaosRate=5.0,
-          chaosOscA=0.0, chaosOscB=0.0,
+          chaosOscA=1.0, chaosOscB=1.0,
           chaosRunA=0.0, chaosRunB=0.0, chaosRunF=0.0,
           pan=0.0, panMod=1.0, panRoute=0 |
 
@@ -78,13 +78,14 @@ s.waitForBoot {
         ]);
 
         // Chaos offsets the Rungler depth — the attractor literally rewires the patch
-        effRunA = (runA + chaosRaw * chaosRunA).clip(0, 1);
-        effRunB = (runB + chaosRaw * chaosRunB).clip(0, 1);
-        effRunF = (runF + chaosRaw * chaosRunF).clip(0, 1);
+        // NB: parentheses required — SC evaluates binary ops left-to-right, no precedence
+        effRunA = (runA + (chaosRaw * chaosRunA)).clip(0, 1);
+        effRunB = (runB + (chaosRaw * chaosRunB)).clip(0, 1);
+        effRunF = (runF + (chaosRaw * chaosRunF)).clip(0, 1);
 
         // Oscillator frequencies — Rungler FM + MOD routing + direct chaos FM
-        freqA = (oscA * (2 ** (runglerCV * effRunA * 3 + modASig * modA * 2 + chaosRaw * chaosOscA * 3))).clip(0.1, 12000);
-        freqB = (oscB * (2 ** (runglerCV.neg * effRunB * 3 + modBSig * modB * 2 + chaosRaw * chaosOscB * 3))).clip(0.1, 12000);
+        freqA = (oscA * (2 ** (runglerCV * effRunA * 3 + modASig * modA * 2 + (chaosRaw * chaosOscA) * 3))).clip(0.1, 12000);
+        freqB = (oscB * (2 ** (runglerCV.neg * effRunB * 3 + modBSig * modB * 2 + (chaosRaw * chaosOscB) * 3))).clip(0.1, 12000);
 
         triA   = LFTri.ar(freqA);
         triB   = LFTri.ar(freqB);
