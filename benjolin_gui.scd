@@ -30,7 +30,12 @@ s.waitForBoot {
     {
         var win, synth, loopSwBtn, filterBtns, chaosBtns, startBtn;
         var presetWin, saveModeBtn, slotBtns;
-        var fxWin;
+        var fxWin, fxKnobs;
+        var fxState = (
+            resonOn: 0, resonFreq: 200.0, resonDecay: 1.5, resonMix: 0.25,
+            delayOn: 0, delayTime: 250, delayFeedback: 0.4, delayMix: 0.3,
+            reverbOn: 0, reverbRoom: 0.6, reverbDamp: 0.5, reverbMix: 0.3
+        );
         var knobs   = ();  // symbol → EZKnob
         var routes  = ();  // symbol → PopUpMenu
         var screen  = Window.screenBounds;
@@ -237,11 +242,14 @@ s.waitForBoot {
             .states_([["⚡ Randomize", Color(1, 0.9, 0.2), Color(0.14, 0.13, 0.08)]])
             .font_(Font.sansSerif(10))
             .action_({
+                var randFilter = 3.rand;
                 knobs.keysValuesDo { |name, k|
                     var v = k.controlSpec.map(1.0.rand);
                     k.value_(v);
                     synth !? { synth.set(name, v) };
                 };
+                filterBtns.do { |b, i| b.value_(i == randFilter) };
+                synth !? { synth.set(\filterMode, randFilter) };
             });
 
         Button(win, Rect(152, 722, 90, 22))
@@ -275,9 +283,10 @@ s.waitForBoot {
             .font_(Font.sansSerif(10, true))
             .action_({ |b|
                 if(b.value == 1) {
-                    fxWin = makeFxWindow.(b, screen, winW, winH, presetWinW, { fxWin = nil });
+                    fxKnobs = ();
+                    fxWin = makeFxWindow.(b, screen, winW, winH, presetWinW, { fxWin = nil; fxKnobs = nil }, fxState, fxKnobs);
                 } {
-                    fxWin !? { fxWin.close; fxWin = nil };
+                    fxWin !? { fxWin.close; fxWin = nil; fxKnobs = nil };
                 };
             });
 
@@ -295,6 +304,7 @@ s.waitForBoot {
             state[\loopSwitch] = loopSwBtn.value;
             state[\filterMode] = filterBtns.detectIndex({ |b| b.value == 1 }) ? 0;
             state[\chaosSource] = chaosBtns.detectIndex({ |b| b.value == 1 }) ? 0;
+            state[\fx] = fxState.copy;
             state
         };
 
@@ -317,6 +327,12 @@ s.waitForBoot {
             state[\chaosSource] !? { |val|
                 chaosBtns.do { |b, i| b.value_(i == val) };
                 synth !? { synth.set(\chaosSource, val) };
+            };
+            state[\fx] !? { |fs|
+                fs.keysValuesDo { |k, v| fxState[k] = v };
+                ~benjoFX !? { fs.keysValuesDo { |k, v| ~benjoFX.set(k, v) } };
+                // update knob/button visuals if the FX window is currently open
+                fxKnobs !? { fs.keysValuesDo { |k, v| fxKnobs[k] !? { |w| w.value_(v) } } };
             };
         };
 
