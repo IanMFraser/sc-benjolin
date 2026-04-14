@@ -347,13 +347,13 @@ s.waitForBoot {
         // Rate knob — aligned with source buttons; depth label clears below its bottom (482+90=572)
         mkKnob.(\chaosRate, 0.1, 200, \exp, 0, 5.0, 600, 482);
 
-        // Depth knobs — label at 592 clears rate knob bottom at 572
-        mkLabel.("── CHAOS DEPTH ─── osc = direct FM   run = Rungler depth ──", 20, 592);
-        mkKnob.(\chaosOscA, 0, 3, \lin, 0.01,  0.0,  20, 610);
-        mkKnob.(\chaosOscB, 0, 3, \lin, 0.01,  0.0, 115, 610);
-        mkKnob.(\chaosRunA, 0, 1, \lin, 0.001, 0.0, 210, 610);
-        mkKnob.(\chaosRunB, 0, 1, \lin, 0.001, 0.0, 305, 610);
-        mkKnob.(\chaosRunF, 0, 1, \lin, 0.001, 0.0, 400, 610);
+        // Depth knobs — x=20-480, so no horizontal overlap with rate knob at x=600
+        mkLabel.("── CHAOS DEPTH ─── osc = direct FM   run = Rungler depth ──", 20, 518);
+        mkKnob.(\chaosOscA, 0, 3, \lin, 0.01,  0.0,  20, 538);
+        mkKnob.(\chaosOscB, 0, 3, \lin, 0.01,  0.0, 115, 538);
+        mkKnob.(\chaosRunA, 0, 1, \lin, 0.001, 0.0, 210, 538);
+        mkKnob.(\chaosRunB, 0, 1, \lin, 0.001, 0.0, 305, 538);
+        mkKnob.(\chaosRunF, 0, 1, \lin, 0.001, 0.0, 400, 538);
 
         // Bottom buttons
         Button(win, Rect(20, 722, 120, 22))
