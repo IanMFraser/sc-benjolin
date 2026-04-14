@@ -25,6 +25,18 @@ This SuperCollider implementation follows the Epoch Modular design closely, then
 - SuperCollider 3.12 or later
 - No additional plugins required
 
+### File Structure
+
+The implementation is split across three files that must be kept in the same folder:
+
+| File | Purpose |
+|---|---|
+| `benjolin_gui.scd` | **Entry point.** Open and evaluate this file. Loads the other two automatically. |
+| `benjolin_synthdefs.scd` | SynthDef definitions (`\benjolin` and `\benjoFX`). Loaded by the main file — do not evaluate directly. |
+| `benjolin_fx_gui.scd` | FX window code. Loaded by the main file — do not evaluate directly. |
+
+Only `benjolin_gui.scd` needs to be opened. It locates the other files relative to its own path and loads them automatically at startup.
+
 **To launch:**
 
 1. Open `benjolin_gui.scd` in SuperCollider
