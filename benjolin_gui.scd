@@ -68,13 +68,14 @@ s.waitForBoot {
         modBSig = Select.ar(modBRoute, sources);
         modFSig = Select.ar(modFRoute, sources);
 
-        // Chaos attractor — all three run simultaneously; Select.kr picks the active one
+        // Chaos attractor — all four run simultaneously; Select picks the active one
         // GbmanN and StandardMapN can have large excursions — clip keeps them in -1..1
         chaosRaw = Select.ar(chaosSource, [
-            DC.ar(0),                                          // 0 = OFF
-            HenonC.ar(chaosRate, 1.4, 0.3).clip(-1, 1),       // 1 = Hénon
-            GbmanN.ar(chaosRate).clip(-1, 1),                  // 2 = Gingerbread Man
-            StandardN.ar(chaosRate, 1.0).clip(-1, 1),          // 3 = Standard Map
+            DC.ar(0),                                                                      // 0 = OFF
+            HenonC.ar(chaosRate, 1.4, 0.3).clip(-1, 1),                                   // 1 = Hénon
+            GbmanN.ar(chaosRate).clip(-1, 1),                                              // 2 = Gingerbread Man
+            StandardN.ar(chaosRate, 1.0).clip(-1, 1),                                     // 3 = Standard Map
+            Gendy1.ar(2, 2, 1.0, 0.1, chaosRate * 0.5, chaosRate * 3, 0.5, 0.5, 12).clip(-1, 1),  // 4 = Gendy stochastic
         ]);
 
         // Chaos offsets the Rungler depth — the attractor literally rewires the patch
@@ -141,12 +142,67 @@ s.waitForBoot {
 
         // ── Spatial ────────────────────────────────────────────
         // Pan position: base knob + any routing source (internal signals or chaos)
-        panPos = (pan + Select.ar(panRoute, sources ++ [chaosRaw]) * panMod).clip(-1, 1);
+        // chaosRaw is smoothed here — GbmanN/StandardN produce instantaneous jumps
+        // that cause audible noise when fed directly into Pan2 at audio rate.
+        panPos = (pan + Select.ar(panRoute, sources ++ [Lag.ar(chaosRaw, 0.05)]) * panMod).clip(-1, 1);
 
         Out.ar(out, Pan2.ar(mono, panPos));
     }).add;
 
+    // ----------------------------------------------------------
+    // Effects SynthDef
+    //
+    // Reads from ~benjoBus (stereo), outputs to hardware out.
+    // Replaces ~benjoMonitor — always running; effects are bypassed
+    // by setting their mix to 0 rather than freeing the synth.
+    // ----------------------------------------------------------
+    SynthDef(\benjoFX, {
+        | in=0, out=0,
+          delayOn=0, delayTime=250, delayFeedback=0.4, delayMix=0.3,
+          reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3,
+          resonOn=0, resonFreq=200.0, resonDecay=1.5, resonMix=0.25 |
+
+        var dry, sig, delWet, revWet, resWet;
+
+        dry = In.ar(in, 2);
+        sig = dry;
+
+        // ── Ping-pong delay ──────────────────────────────────
+        // Feedback gated by delayOn so buffer clears when bypassed
+        delWet = {
+            var fb = LocalIn.ar(2) * delayFeedback * delayOn;
+            var dL = DelayL.ar(dry[0] + fb[1], 2.0, (delayTime * 0.001).max(0.001));
+            var dR = DelayL.ar(dry[1] + fb[0], 2.0, (delayTime * 1.33 * 0.001).max(0.001));
+            LocalOut.ar([dL, dR]);
+            [dL, dR]
+        }.value;
+        sig = sig + (delWet * delayMix * delayOn);
+
+        // ── Reverb ───────────────────────────────────────────
+        revWet = FreeVerb2.ar(sig[0], sig[1], 1.0, reverbRoom, reverbDamp);
+        sig = sig * (1 - (reverbMix * reverbOn)) + (revWet * reverbMix * reverbOn);
+
+        // ── Harmonic resonator (Ringz bank) ──────────────────
+        // Partials 1–8 of resonFreq; Ringz freq + decay are fully modulatable
+        resWet = {
+            var mono = (sig[0] + sig[1]) * 0.5;
+            var amps = [1.0, 0.55, 0.38, 0.28, 0.20, 0.16, 0.13, 0.10];
+            var bank = 8.collect({ |i|
+                Ringz.ar(mono, resonFreq * (i + 1), resonDecay) * amps[i]
+            });
+            bank.sum * 0.15
+        }.value;
+        sig = sig + (Pan2.ar(resWet) * resonMix * resonOn);
+
+        Out.ar(out, sig.clip2(0.95));
+    }).add;
+
     s.sync;
+
+    // Bus + effects synth — FX synth replaces ~benjoMonitor as output stage
+    ~benjoBus.free;
+    ~benjoBus = Bus.audio(s, 2);
+    ~benjoFX  = Synth(\benjoFX, [\in, ~benjoBus, \out, 0], addAction: \addToTail);
 
     // ----------------------------------------------------------
     // GUI
@@ -154,6 +210,7 @@ s.waitForBoot {
     {
         var win, synth, loopSwBtn, filterBtns, chaosBtns, startBtn;
         var presetWin, saveModeBtn, slotBtns;
+        var fxWin;
         var knobs   = ();  // symbol → EZKnob
         var routes  = ();  // symbol → PopUpMenu
         var screen  = Window.screenBounds;
@@ -304,8 +361,8 @@ s.waitForBoot {
             .align_(\center);
         loopSwBtn = Button(win, Rect(118, 370, 82, 34))
             .states_([
-                ["LOOP OFF", Color(0.55, 0.55, 0.55), Color(0.13, 0.13, 0.15)],
-                ["LOOP ON",  Color(0.3,  1.0,  0.5),  Color(0.08, 0.2,  0.1) ]
+                ["LOOP", Color(0.4, 0.4, 0.4), Color(0.13, 0.13, 0.15)],
+                ["LOOP", Color(0.3, 1.0, 0.5), Color(0.08, 0.2,  0.1) ]
             ])
             .font_(Font.sansSerif(9, true))
             .action_({ |btn| synth !? { synth.set(\loopSwitch, btn.value) } });
@@ -326,7 +383,7 @@ s.waitForBoot {
         // ── Row 4: Chaos Automaton ──────────────────────────────
         mkLabel.("── CHAOS AUTOMATON ─── source ↓ ──────────────", 20, 464);
 
-        chaosBtns = ["OFF", "HÉNON", "GBMAN", "STDMAP"].collect({ |label, i|
+        chaosBtns = ["OFF", "HÉNON", "GBMAN", "STDMAP", "GENDY"].collect({ |label, i|
             Button(win, Rect(20 + (i * 93), 482, 85, 28))
                 .states_([
                     [label, Color(0.5,  0.5,  0.5),  Color(0.13, 0.13, 0.15)],
@@ -387,6 +444,90 @@ s.waitForBoot {
                 };
                 chaosBtns.do { |b, i| b.value_(i == 0) };
                 synth !? { synth.set(\chaosSource, 0) };
+            });
+
+        // FX window toggle
+        Button(win, Rect(260, 722, 70, 22))
+            .states_([
+                ["⚙ FX",  Color(0.75, 0.55, 1.0), Color(0.12, 0.08, 0.20)],
+                ["⚙ FX",  Color(1.0,  0.85, 0.3),  Color(0.20, 0.15, 0.04)]
+            ])
+            .font_(Font.sansSerif(10, true))
+            .action_({ |b|
+                if(b.value == 1) {
+                    var fxWinW = 410, fxWinH = 440;
+                    var fxX = (screen.width - winW - 8 - presetWinW) / 2;
+                    var fxY = (screen.height - winH) / 2 + winH + 8;
+
+                    var mkFXKnob = { |name, lo, hi, warp, step, def, x, y|
+                        var spec = ControlSpec(lo, hi, warp, step, def);
+                        var k = EZKnob(
+                            fxWin, Rect(x, y, 80, 90),
+                            name.asString, spec,
+                            { |ez| ~benjoFX !? { ~benjoFX.set(name, ez.value) } },
+                            def, false
+                        );
+                        k.labelView.font_(Font.sansSerif(10, true))
+                            .stringColor_(Color.white).align_(\center);
+                        k.numberView.font_(Font.monospace(10))
+                            .background_(Color(0.1, 0.1, 0.12))
+                            .stringColor_(Color(0.85, 0.9, 1))
+                            .normalColor_(Color(0.85, 0.9, 1));
+                        k
+                    };
+
+                    var mkFXLabel = { |text, x, y|
+                        StaticText(fxWin, Rect(x, y, 380, 20))
+                            .string_(text)
+                            .font_(Font.sansSerif(9))
+                            .stringColor_(Color(0.4, 0.6, 0.9));
+                    };
+
+                    var mkOnBtn = { |paramName, x, y|
+                        var btn = Button(fxWin, Rect(x, y, 80, 34))
+                            .states_([
+                                ["OFF", Color(0.5, 0.5, 0.5), Color(0.13, 0.13, 0.15)],
+                                ["ON",  Color(0.3, 1.0, 0.5),  Color(0.08, 0.2,  0.1) ]
+                            ])
+                            .font_(Font.sansSerif(10, true))
+                            .action_({ |b| ~benjoFX !? { ~benjoFX.set(paramName, b.value) } });
+                        btn
+                    };
+
+                    fxWin = Window("Benjolin FX",
+                        Rect(fxX, fxY, fxWinW, fxWinH)
+                    ).background_(Color(0.07, 0.07, 0.09)).front;
+
+                    StaticText(fxWin, Rect(15, 10, 200, 20))
+                        .string_("EFFECTS")
+                        .font_(Font.sansSerif(13, true))
+                        .stringColor_(Color.white);
+
+                    // ── DELAY ────────────────────────────────────────
+                    mkFXLabel.("── DELAY ─── ping-pong ─────────────────────", 15, 42);
+                    mkOnBtn.(\delayOn,       15, 70);
+                    mkFXKnob.(\delayTime,     10, 1000, \exp, 0, 250, 110, 52);
+                    mkFXKnob.(\delayFeedback, 0,    0.95, \lin, 0.001, 0.4,  205, 52);
+                    mkFXKnob.(\delayMix,      0,    1.0, \lin,  0.001, 0.3,  300, 52);
+
+                    // ── REVERB ───────────────────────────────────────
+                    mkFXLabel.("── REVERB ───────────────────────────────────", 15, 160);
+                    mkOnBtn.(\reverbOn,     15, 188);
+                    mkFXKnob.(\reverbRoom,   0, 1.0, \lin, 0.001, 0.6, 110, 170);
+                    mkFXKnob.(\reverbDamp,   0, 1.0, \lin, 0.001, 0.5, 205, 170);
+                    mkFXKnob.(\reverbMix,    0, 1.0, \lin, 0.001, 0.3, 300, 170);
+
+                    // ── RESONATOR ────────────────────────────────────
+                    mkFXLabel.("── RESONATOR ─── harmonic Klank bank ───────", 15, 278);
+                    mkOnBtn.(\resonOn,      15, 306);
+                    mkFXKnob.(\resonFreq,  20, 2000, \exp,  0,     200,  110, 288);
+                    mkFXKnob.(\resonDecay,  0.1, 8.0, \exp, 0,     1.5,  205, 288);
+                    mkFXKnob.(\resonMix,    0,   1.0, \lin, 0.001, 0.25, 300, 288);
+
+                    fxWin.onClose = { b.value_(0); fxWin = nil };
+                } {
+                    fxWin !? { fxWin.close; fxWin = nil };
+                };
             });
 
         // ── Preset Matrix ────────────────────────────────────────
@@ -538,10 +679,11 @@ s.waitForBoot {
         };
 
         win.onClose = {
-            synth.free; synth = nil;
-            ~benjoMonitor.free;
-            ~benjoBus.free;
+            synth.free;    synth = nil;
+            ~benjoFX.free; ~benjoFX = nil;
+            ~benjoBus.free; ~benjoBus = nil;
             presetWin.close;
+            fxWin !? { fxWin.close };
         };
 
     }.defer;

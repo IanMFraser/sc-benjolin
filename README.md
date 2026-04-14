@@ -163,6 +163,7 @@ A software-only extension that drives Benjolin parameters from mathematical stra
 | **HÉNON**  | Hénon map               | Bounded, relatively tame. Oscillates within a constrained range — good for subtle, organic variation. The classic "strange attractor" shape. |
 | **GBMAN**  | Gingerbread Man map     | More angular and discontinuous. Tends to jump between regions — good for rhythmic, stuttering modulation.                                    |
 | **STDMAP** | Standard map (Chirikov) | Most variable. Can switch between quasi-periodic and fully chaotic regimes depending on the `chaosRate` value.                               |
+| **GENDY**  | Gendy stochastic synthesis | Generates chaos through randomised breakpoint waveforms. Softer and more tonal than the map-based attractors; evolves gradually rather than jumping. `chaosRate` scales the frequency range of the generator. |
 
 #### Chaos Rate
 
@@ -197,6 +198,7 @@ Two types of targets, with distinct musical effects:
 - _Slow drift_: HÉNON, rate 0.5, chaosRunF 0.4 — the filter cutoff drifts slowly, organically
 - _Rhythmic instability_: GBMAN, rate 8, chaosOscB 0.3 — the clock OSC wobbles, Rungler patterns constantly shift length
 - _Wild FM_: STDMAP, rate 30, chaosOscA 1.5 — dramatic pitch chaos with the Rungler still active underneath
+- _Soft organic movement_: GENDY, rate 2, chaosRunA 0.3, chaosRunF 0.3 — gentle stochastic sculpting of the Rungler feedback depth
 
 ---
 
@@ -216,6 +218,55 @@ Controls the position of the output in the stereo field, with optional modulatio
 - **XOR** — Hard left/right flicker at the XOR logic rate. At low oscillator frequencies this becomes a tremolo-like effect; at higher rates it smears into a perceived width.
 - **TRI B** — Smooth sinusoidal panning at OSC B's frequency — a classic auto-pan.
 - **CHAOS** — Organic, non-repeating spatial movement driven by the attractor.
+
+---
+
+## Effects
+
+A separate effects window is opened by clicking the **⚙ FX** button in the bottom-left of the main panel. The effects run in a dedicated synth that sits after the Benjolin in the signal chain, reading from the internal audio bus and outputting to hardware. All three effects are always active in the signal graph — each is bypassed by leaving its **ON** toggle off, which costs negligible CPU.
+
+Effects are applied in series: **Delay → Reverb → Resonator**.
+
+---
+
+### Delay
+
+A ping-pong stereo delay. The left and right channels feed into each other across repeats, bouncing the signal between the stereo field.
+
+| Control      | Range        | Description                                                                                     |
+| ------------ | ------------ | ----------------------------------------------------------------------------------------------- |
+| **ON**       | toggle       | Enables the delay. When off, the feedback buffer drains cleanly — no burst on re-enable.        |
+| **delayTime**    | 10–1000 ms   | Time between repeats, displayed in milliseconds. The right channel delay is fixed at 1.33× the left, creating the ping-pong offset. |
+| **delayFeedback** | 0–0.95  | How much of each repeat feeds back into the next. High values produce long trails; approaching 1.0 creates near-infinite repeats. |
+| **delayMix** | 0–1          | Wet level added on top of the dry signal.                                                       |
+
+---
+
+### Reverb
+
+A stereo algorithmic reverb based on FreeVerb.
+
+| Control       | Range | Description                                                                                   |
+| ------------- | ----- | --------------------------------------------------------------------------------------------- |
+| **ON**        | toggle | Enables the reverb.                                                                          |
+| **reverbRoom** | 0–1  | Room size. Larger values produce longer, more diffuse tails.                                  |
+| **reverbDamp** | 0–1  | High-frequency damping. Higher values absorb treble in the tail, producing a warmer reverb.   |
+| **reverbMix**  | 0–1  | Wet/dry balance. At 0 the signal is unaffected; at 1 the output is fully wet.                |
+
+---
+
+### Resonator
+
+A bank of eight `Ringz` resonant filters tuned to the harmonic series of a fundamental frequency. When excited by the Benjolin's output, the bank rings at those partials, imposing a tonal centre on otherwise chaotic material. Unlike the Klank UGen, all parameters update in real time.
+
+| Control       | Range        | Description                                                                                        |
+| ------------- | ------------ | -------------------------------------------------------------------------------------------------- |
+| **ON**        | toggle       | Enables the resonator.                                                                             |
+| **resonFreq** | 20–2000 Hz   | Fundamental frequency of the resonator bank. Partials 1–8 are tuned to integer multiples of this value. |
+| **resonDecay** | 0.1–8.0 s  | Ring time for each partial. Short values give a percussive click; longer values produce sustained, bell-like tones. |
+| **resonMix**  | 0–1          | Wet level of the resonator added to the signal.                                                    |
+
+**Tip:** tuning `resonFreq` to match or harmonically relate to `oscA` creates a feedback-like coherence between the Benjolin's pitch and the resonator's colouration. Slow Rungler movement with a long `resonDecay` produces evolving, chord-like clouds.
 
 ---
 
@@ -311,7 +362,7 @@ All sources except CHAOS use values from the **previous audio block** (approxima
 
 - The shift register is clocked by **rising edges of OSC B's pulse output**, matching the Epoch Modular hardware (not the XOR output as in some earlier Benjolin descriptions).
 - Resonance uses an **anti-logarithmic mapping** (`rq = 0.01 ** res`) matching the Epoch Modular's resonance feel — the knob is subtle at low values and dramatic near the top.
-- The chaos UGens (HenonC, GbmanN, StandardN) run at **audio rate** and are clipped to ±1. All three attractors run simultaneously inside the SynthDef; Select.ar picks the active one with negligible CPU overhead.
+- The chaos UGens (HenonC, GbmanN, StandardN, Gendy1) run at **audio rate** and are clipped to ±1. All four attractors run simultaneously inside the SynthDef; Select.ar picks the active one with negligible CPU overhead. When chaos is used as a **pan source**, its output is smoothed with a 50 ms lag to prevent audible noise from the discontinuous jumps produced by GbmanN and StandardN.
 - The `~benjoBus` stereo bus is available for external processing — `benjolin_waveset.scd` uses it to capture and process the output through waveset synthesis.
 
 ---
