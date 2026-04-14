@@ -158,7 +158,7 @@ s.waitForBoot {
         var routes  = ();  // symbol → PopUpMenu
         var screen  = Window.screenBounds;
         var winW    = 720, winH = 760;
-        var presetWinW = 290, presetWinH = 390;
+        var presetWinW = 290, presetWinH = 420;
         var presets, presetPath, captureState, recallState, refreshSlot, refreshAll;
         var activeSlot = nil;
         var sourceNames = ["NONE", "TRI A", "TRI B",
@@ -486,13 +486,38 @@ s.waitForBoot {
             ])
             .font_(Font.sansSerif(10, true));
 
+        // Export / Import
+        Button(presetWin, Rect(15, 68, 120, 24))
+            .states_([["↑  EXPORT", Color(0.5, 0.9, 0.6), Color(0.07, 0.18, 0.1)]])
+            .font_(Font.sansSerif(10, true))
+            .action_({
+                Dialog.savePanel({ |path|
+                    presets.writeArchive(path);
+                });
+            });
+
+        Button(presetWin, Rect(148, 68, 127, 24))
+            .states_([["↓  IMPORT", Color(0.5, 0.75, 1.0), Color(0.07, 0.13, 0.22)]])
+            .font_(Font.sansSerif(10, true))
+            .action_({
+                Dialog.openPanel({ |path|
+                    var loaded = Object.readArchive(path);
+                    loaded !? {
+                        presets = loaded;
+                        presets.writeArchive(presetPath);
+                        activeSlot = nil;
+                        refreshAll.();
+                    };
+                });
+            });
+
         // 2×8 grid — 16 slots
         slotBtns = Array.new(16);
         16.do { |idx|
             var col = idx % 2;
             var row = idx / 2;
             var btn = Button(presetWin,
-                Rect(15 + (col * 135), 70 + (row * 38), 125, 30));
+                Rect(15 + (col * 135), 100 + (row * 38), 125, 30));
             btn.font_(Font.sansSerif(10, true));
             slotBtns.add(btn);
             refreshSlot.(idx);

@@ -250,6 +250,20 @@ Clicking an empty slot simply highlights it — useful for designating where you
 
 **✖ CLEAR ALL** uses a two-click confirmation: first click arms (button turns red, label reads CONFIRM CLEAR), second click wipes all 16 slots. Auto-disarms after 3 seconds.
 
+### Exporting and Importing Presets
+
+Presets can be saved to and loaded from arbitrary files, making it easy to back up a bank, share it with another user, or maintain separate sets for different sessions.
+
+**↑ EXPORT** — Opens a save dialog. Choose any location and filename — no particular extension is required. The current 16 slots are written to that file. This does not affect the auto-save file.
+
+**↓ IMPORT** — Opens a file picker. Select a previously exported `.archive` file. The 16 slots load immediately, the grid refreshes, and the imported bank is written to the auto-save location so it persists across restarts.
+
+The auto-save file lives at:
+
+```
+~/Library/Application Support/SuperCollider/benjolin_presets.archive
+```
+
 ---
 
 ## Utility Buttons
