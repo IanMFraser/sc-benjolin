@@ -153,10 +153,22 @@ SynthDef(\benjoFX, {
       reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3,
       resonOn=0, resonFreq=200.0, resonDecay=1.5, resonMix=0.25 |
 
-    var dry, sig, delWet, revWet, resWet;
+    var dry, sig, delWet, revWet, resWet, smoothReverbMix;
 
     dry = In.ar(in, 2);
     sig = dry;
+
+    // ── Harmonic resonator (Ringz bank) ──────────────────
+    // Partials 1–8 of resonFreq; Ringz freq + decay are fully modulatable
+    resWet = {
+        var mono = (sig[0] + sig[1]) * 0.5;
+        var amps = [1.0, 0.55, 0.38, 0.28, 0.20, 0.16, 0.13, 0.10];
+        var bank = 8.collect({ |i|
+            Ringz.ar(mono, resonFreq * (i + 1), resonDecay) * amps[i]
+        });
+        bank.sum * 0.15
+    }.value;
+    sig = sig + (Pan2.ar(resWet) * resonMix * resonOn);
 
     // ── Ping-pong delay ──────────────────────────────────
     // Feedback gated by delayOn so buffer clears when bypassed
@@ -170,20 +182,19 @@ SynthDef(\benjoFX, {
     sig = sig + (delWet * delayMix * delayOn);
 
     // ── Reverb ───────────────────────────────────────────
-    revWet = FreeVerb2.ar(sig[0], sig[1], 1.0, reverbRoom, reverbDamp);
-    sig = sig * (1 - (reverbMix * reverbOn)) + (revWet * reverbMix * reverbOn);
-
-    // ── Harmonic resonator (Ringz bank) ──────────────────
-    // Partials 1–8 of resonFreq; Ringz freq + decay are fully modulatable
-    resWet = {
-        var mono = (sig[0] + sig[1]) * 0.5;
-        var amps = [1.0, 0.55, 0.38, 0.28, 0.20, 0.16, 0.13, 0.10];
-        var bank = 8.collect({ |i|
-            Ringz.ar(mono, resonFreq * (i + 1), resonDecay) * amps[i]
-        });
-        bank.sum * 0.15
-    }.value;
-    sig = sig + (Pan2.ar(resWet) * resonMix * resonOn);
+    // Input is gated immediately when reverbOn → 0, so no new signal enters
+    // the delay lines after a preset switch. The output mix fades slowly (3s)
+    // so whatever is already inside FreeVerb2 rings out naturally rather than
+    // being hard-muted — you hear the tail of the previous preset, not the new one.
+    // Input is gated by reverbOn directly (hard snap) — no lag on the way in.
+    // Because smoothReverbMix starts at 0 when reverbOn flips to 1, the output
+    // is multiplied by 0 at the moment of switching, so no dry-signal bleed is
+    // possible regardless of what FreeVerb2 is doing internally.
+    // On the way out, the 3s release lets the tail of the previous preset ring
+    // down naturally rather than being hard-muted.
+    smoothReverbMix = LagUD.kr(reverbMix * reverbOn, 0.3, 3.0);
+    revWet = FreeVerb2.ar(sig[0] * reverbOn, sig[1] * reverbOn, 1.0, reverbRoom, reverbDamp);
+    sig = sig + (revWet * smoothReverbMix);
 
     Out.ar(out, sig.clip2(0.95));
 }).add;
