@@ -157,7 +157,7 @@ s.waitForBoot {
         var knobs   = ();  // symbol → EZKnob
         var routes  = ();  // symbol → PopUpMenu
         var screen  = Window.screenBounds;
-        var winW    = 720, winH = 750;
+        var winW    = 720, winH = 760;
         var presetWinW = 290, presetWinH = 390;
         var presets, presetPath, captureState, recallState, refreshSlot, refreshAll;
         var activeSlot = nil;
@@ -197,7 +197,7 @@ s.waitForBoot {
 
         // Section label
         var mkLabel = { |text, x, y|
-            StaticText(win, Rect(x, y, 280, 14))
+            StaticText(win, Rect(x, y, 280, 20))
                 .string_(text)
                 .font_(Font.sansSerif(9))
                 .stringColor_(Color(0.4, 0.6, 0.9));
@@ -238,22 +238,22 @@ s.waitForBoot {
                 };
             });
 
-        // ── Row 1: Oscillators + Filter (y=55) ──────────────────
-        mkLabel.("── OSCILLATORS ──────", 20,  48);
-        mkLabel.("── FILTER ─────────────────────────────", 310, 48);
+        // ── Row 1: Oscillators + Filter ─────────────────────────
+        mkLabel.("── OSCILLATORS ──────", 20,  56);
+        mkLabel.("── FILTER ─────────────────────────────", 310, 56);
 
-        mkKnob.(\oscA, 0.1, 10000, \exp, 0,     200,    20,  60);
-        mkKnob.(\oscB, 0.1, 10000, \exp, 0,     271.5,  115, 60);
-        mkKnob.(\freq, 20,  18000, \exp, 0,     5000,    315, 60);
-        mkKnob.(\res,  0,   1,     \lin, 0.001, 0.5,    410, 60);
+        mkKnob.(\oscA, 0.1, 10000, \exp, 0,     200,    20,  74);
+        mkKnob.(\oscB, 0.1, 10000, \exp, 0,     271.5,  115, 74);
+        mkKnob.(\freq, 20,  18000, \exp, 0,     5000,   315, 74);
+        mkKnob.(\res,  0,   1,     \lin, 0.001, 0.5,    410, 74);
 
         // Filter mode buttons
-        StaticText(win, Rect(510, 62, 180, 13))
+        StaticText(win, Rect(510, 74, 180, 18))
             .string_("FILTER MODE")
             .font_(Font.sansSerif(9))
             .stringColor_(Color(0.5, 0.5, 0.5));
         filterBtns = ["LP", "BP", "HP"].collect({ |label, i|
-            Button(win, Rect(510 + (i * 60), 78, 52, 46))
+            Button(win, Rect(510 + (i * 60), 90, 52, 46))
                 .states_([
                     [label, Color(0.5, 0.5, 0.5), Color(0.13, 0.13, 0.15)],
                     [label, Color(0.3, 0.75, 1),  Color(0.08, 0.18, 0.28)]
@@ -271,36 +271,38 @@ s.waitForBoot {
         filterBtns[0].value_(1);
 
         // ── Row 2: Rungler mod + External mod ───────────────────
-        mkLabel.("── RUNGLER MOD ──────", 20,  165);
-        mkLabel.("── EXTERNAL MOD ─── route ↓ ──────────", 310, 165);
+        mkLabel.("── RUNGLER MOD ──────", 20,  184);
+        mkLabel.("── EXTERNAL MOD ─── route ↓ ──────────", 310, 184);
 
-        mkKnob.(\runA, 0, 1, \lin, 0.001, 0.3,  20,  177);
-        mkKnob.(\runB, 0, 1, \lin, 0.001, 0.3,  115, 177);
-        mkKnob.(\runF, 0, 1, \lin, 0.001, 0.4,  210, 177);
-        mkKnob.(\modA, 0, 1, \lin, 0.001, 0.2,  315, 177);
-        mkKnob.(\modB, 0, 1, \lin, 0.001, 0.2,  410, 177);
-        mkKnob.(\modF, 0, 1, \lin, 0.001, 0.2,  505, 177);
+        mkKnob.(\runA, 0, 1, \lin, 0.001, 0.3,  20,  202);
+        mkKnob.(\runB, 0, 1, \lin, 0.001, 0.3,  115, 202);
+        mkKnob.(\runF, 0, 1, \lin, 0.001, 0.4,  210, 202);
+        mkKnob.(\modA, 0, 1, \lin, 0.001, 0.2,  315, 202);
+        mkKnob.(\modB, 0, 1, \lin, 0.001, 0.2,  410, 202);
+        mkKnob.(\modF, 0, 1, \lin, 0.001, 0.2,  505, 202);
 
         // Route selectors — below each MOD knob
         // Defaults: modA←TriB(2), modB←TriA(1), modF←TriB(2)
-        mkRoute.(\modARoute, 2, 315, 271);
-        mkRoute.(\modBRoute, 1, 410, 271);
-        mkRoute.(\modFRoute, 2, 505, 271);
+        mkRoute.(\modARoute, 2, 315, 296);
+        mkRoute.(\modBRoute, 1, 410, 296);
+        mkRoute.(\modFRoute, 2, 505, 296);
 
-        // ── Row 3: Loop + Output ────────────────────────────────
-        mkLabel.("── LOOP ─────────────", 20,  306);
-        mkLabel.("── OUTPUT ─────────────────────────────", 400, 306);
+        // ── Row 3: Loop + Pan + Output ──────────────────────────
+        mkLabel.("── LOOP ─────────────", 20,  336);
+        mkLabel.("── PAN ─── OUTPUT ──────────────────────", 310, 336);
 
-        mkKnob.(\loop,  0, 1, \lin, 0.001, 0.0,  20,  319);
-        mkKnob.(\amp,   0, 1, \lin, 0.001, 0.86, 600, 319);
+        mkKnob.(\loop,  0, 1, \lin, 0.001, 0.0,  20,  354);
+        mkKnob.(\pan,  -1, 1, \lin, 0.001, 0.0,  315, 354);
+        mkKnob.(\panMod, 0, 1, \lin, 0.001, 1.0, 410, 354);
+        mkKnob.(\amp,   0, 1, \lin, 0.001, 0.86, 600, 354);
 
         // Loop switch
-        StaticText(win, Rect(118, 319, 82, 13))
+        StaticText(win, Rect(118, 354, 82, 18))
             .string_("LOOP SW")
             .font_(Font.sansSerif(9))
             .stringColor_(Color(0.5, 0.5, 0.5))
             .align_(\center);
-        loopSwBtn = Button(win, Rect(118, 335, 82, 34))
+        loopSwBtn = Button(win, Rect(118, 370, 82, 34))
             .states_([
                 ["LOOP OFF", Color(0.55, 0.55, 0.55), Color(0.13, 0.13, 0.15)],
                 ["LOOP ON",  Color(0.3,  1.0,  0.5),  Color(0.08, 0.2,  0.1) ]
@@ -308,11 +310,24 @@ s.waitForBoot {
             .font_(Font.sansSerif(9, true))
             .action_({ |btn| synth !? { synth.set(\loopSwitch, btn.value) } });
 
+        // Pan mod source — sits between panMod and amp knobs
+        StaticText(win, Rect(505, 354, 88, 18))
+            .string_("PAN SOURCE")
+            .font_(Font.sansSerif(9))
+            .stringColor_(Color(0.5, 0.5, 0.5));
+        routes.put(\panRoute,
+            PopUpMenu(win, Rect(505, 370, 88, 20))
+                .items_(sourceNames ++ ["CHAOS"])
+                .value_(0)
+                .font_(Font.sansSerif(9))
+                .action_({ |menu| synth !? { synth.set(\panRoute, menu.value) } })
+        );
+
         // ── Row 4: Chaos Automaton ──────────────────────────────
-        mkLabel.("── CHAOS AUTOMATON ─── source ↓ ──────────────", 20, 424);
+        mkLabel.("── CHAOS AUTOMATON ─── source ↓ ──────────────", 20, 464);
 
         chaosBtns = ["OFF", "HÉNON", "GBMAN", "STDMAP"].collect({ |label, i|
-            Button(win, Rect(20 + (i * 93), 439, 85, 28))
+            Button(win, Rect(20 + (i * 93), 482, 85, 28))
                 .states_([
                     [label, Color(0.5,  0.5,  0.5),  Color(0.13, 0.13, 0.15)],
                     [label, Color(1.0,  0.75, 0.2),  Color(0.22, 0.14, 0.04)]
@@ -329,38 +344,19 @@ s.waitForBoot {
             });
         };
 
-        // Rate knob (right side, same row as source buttons)
-        mkKnob.(\chaosRate, 0.1, 200, \exp, 0, 5.0, 600, 429);
+        // Rate knob — aligned with source buttons; depth label clears below its bottom (482+90=572)
+        mkKnob.(\chaosRate, 0.1, 200, \exp, 0, 5.0, 600, 482);
 
-        // Depth knobs — osc FM is direct pitch chaos; run knobs offset Rungler depth
-        mkLabel.("── CHAOS DEPTH ─── osc = direct FM   run = Rungler depth ──", 20, 479);
-        mkKnob.(\chaosOscA, 0, 3, \lin, 0.01,  0.0,  20, 491);
-        mkKnob.(\chaosOscB, 0, 3, \lin, 0.01,  0.0, 115, 491);
-        mkKnob.(\chaosRunA, 0, 1, \lin, 0.001, 0.0, 210, 491);
-        mkKnob.(\chaosRunB, 0, 1, \lin, 0.001, 0.0, 305, 491);
-        mkKnob.(\chaosRunF, 0, 1, \lin, 0.001, 0.0, 400, 491);
-
-        // ── Row 5: Spatial ──────────────────────────────────────
-        mkLabel.("── SPATIAL ─── pan + width + mod source ───────────────", 20, 596);
-
-        mkKnob.(\pan,      -1, 1, \lin, 0.001, 0.0,  20, 609);
-        mkKnob.(\panMod,  0, 1, \lin, 0.001, 1.0, 115, 609);
-
-        StaticText(win, Rect(315, 609, 160, 13))
-            .string_("PAN MOD SOURCE")
-            .font_(Font.sansSerif(9))
-            .stringColor_(Color(0.5, 0.5, 0.5));
-        // sourceNames (8 internal) + CHAOS (index 8) — added to routes for auto capture/recall
-        routes.put(\panRoute,
-            PopUpMenu(win, Rect(315, 625, 160, 20))
-                .items_(sourceNames ++ ["CHAOS"])
-                .value_(0)
-                .font_(Font.sansSerif(9))
-                .action_({ |menu| synth !? { synth.set(\panRoute, menu.value) } })
-        );
+        // Depth knobs — label at 592 clears rate knob bottom at 572
+        mkLabel.("── CHAOS DEPTH ─── osc = direct FM   run = Rungler depth ──", 20, 592);
+        mkKnob.(\chaosOscA, 0, 3, \lin, 0.01,  0.0,  20, 610);
+        mkKnob.(\chaosOscB, 0, 3, \lin, 0.01,  0.0, 115, 610);
+        mkKnob.(\chaosRunA, 0, 1, \lin, 0.001, 0.0, 210, 610);
+        mkKnob.(\chaosRunB, 0, 1, \lin, 0.001, 0.0, 305, 610);
+        mkKnob.(\chaosRunF, 0, 1, \lin, 0.001, 0.0, 400, 610);
 
         // Bottom buttons
-        Button(win, Rect(20, 714, 120, 22))
+        Button(win, Rect(20, 722, 120, 22))
             .states_([["⚡ Randomize", Color(1, 0.9, 0.2), Color(0.14, 0.13, 0.08)]])
             .font_(Font.sansSerif(10))
             .action_({
@@ -371,7 +367,7 @@ s.waitForBoot {
                 };
             });
 
-        Button(win, Rect(152, 714, 90, 22))
+        Button(win, Rect(152, 722, 90, 22))
             .states_([["↺ Reset", Color(0.7, 0.7, 1), Color(0.11, 0.11, 0.18)]])
             .font_(Font.sansSerif(10))
             .action_({
