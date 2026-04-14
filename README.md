@@ -32,7 +32,7 @@ The implementation is split across three files that must be kept in the same fol
 | File | Purpose |
 |---|---|
 | `benjolin_gui.scd` | **Entry point.** Open and evaluate this file. Loads the other two automatically. |
-| `benjolin_synthdefs.scd` | SynthDef definitions (`\benjolin` and `\benjoFX`). Loaded by the main file — do not evaluate directly. |
+| `benjolin_synthdefs.scd` | SynthDef definitions (`\benjolin` and all five FX synths). Loaded by the main file — do not evaluate directly. |
 | `benjolin_fx_gui.scd` | FX window code. Loaded by the main file — do not evaluate directly. |
 
 Only `benjolin_gui.scd` needs to be opened. It locates the other files relative to its own path and loads them automatically at startup.
@@ -235,9 +235,19 @@ Controls the position of the output in the stereo field, with optional modulatio
 
 ## Effects
 
-A separate effects window is opened by clicking the **⚙ FX** button in the bottom-left of the main panel. The effects run in a dedicated synth that sits after the Benjolin in the signal chain, reading from the internal audio bus and outputting to hardware. All three effects are always active in the signal graph — each is bypassed by leaving its **ON** toggle off, which costs negligible CPU.
+A separate effects window is opened by clicking the **⚙ FX** button in the bottom-left of the main panel. The effects run as five separate synths that sit after the Benjolin in the signal chain, reading from and writing back to the internal audio bus before the final output stage. All five effects are always present in the signal graph — each is bypassed by leaving its **ON** toggle off, which costs negligible CPU.
 
-Effects are applied in series: **Delay → Reverb → Resonator**.
+The default processing order is: **Resonator → Delay → Reverb → EQ → Pitch Shifter**.
+
+#### Reordering the Chain
+
+The **CHAIN** strip at the top of the FX window shows the current processing order as five labelled buttons. To swap two effects:
+
+1. Click the first button — it turns green (armed)
+2. Click a second button — the two effects are swapped immediately in the server node graph
+3. Click an armed button a second time to disarm without swapping
+
+The chain order resets to default when the FX window is closed. It is not saved in presets.
 
 ---
 
@@ -279,6 +289,66 @@ A bank of eight `Ringz` resonant filters tuned to the harmonic series of a funda
 | **resonMix**  | 0–1          | Wet level of the resonator added to the signal.                                                    |
 
 **Tip:** tuning `resonFreq` to match or harmonically relate to `oscA` creates a feedback-like coherence between the Benjolin's pitch and the resonator's colouration. Slow Rungler movement with a long `resonDecay` produces evolving, chord-like clouds.
+
+---
+
+### Flanger
+
+A stereo comb-filter flanger. An LFTri oscillator sweeps the delay time of a `BufCombC` filter, creating the characteristic through-zero flanging and comb-filter phasing. Left and right channels share the same modulator, producing a coherent stereo image rather than independent random wobble. The design is adapted directly from Tommi Keränen's Autohazard flanger.
+
+| Control             | Range          | Description                                                                                                                                                                          |
+| ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **ON**              | toggle         | Enables the flanger. When off, the dry signal passes through unchanged.                                                                                                              |
+| **flangerRate**     | 0.05 – 20 Hz   | Speed of the LFTri sweep. Slow rates (0.1–1 Hz) produce classic jet-plane flanging; faster rates enter chorus and vibrato territory.                                                |
+| **flangerRange**    | 10 – 500 Hz    | Sets the frequency range of the comb-filter sweep. This is specified as a frequency in Hz — the reciprocal gives the maximum delay time in seconds. Higher values produce shorter delays and move the comb teeth higher in the spectrum. |
+| **flangerFeedback** | 0 – 6.0 s      | The 60 dB decay time of the internal comb filter. At `0`, each sweep is a single pass with no ringing. Higher values produce increasingly resonant, singing comb resonances. Values above 3–4 s can become quite intense. |
+| **flangerMix**      | 0 – 1          | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the flanged signal is heard.                                                                                        |
+
+**Tips:**
+- `flangerRate` around `0.3–0.8 Hz` with `flangerRange` around `80–120` Hz is the classic tape-flanger sweet spot.
+- Increasing `flangerFeedback` to `1.5–3 s` while keeping `flangerMix` low (~0.3) adds a subtle metallic resonance without overwhelming the source.
+- The flanger responds well to Benjolin's irregular rhythms — placing it **after** the Delay in the chain means the delay echoes are also flanged, compounding the effect.
+
+---
+
+### Pitch Shifter
+
+A granular pitch shifter based on the `PitchShift` UGen. The input signal is divided into short overlapping grains, each transposed by the shift ratio, then reassembled. This produces smooth transposition at the cost of a small latency proportional to the window size.
+
+| Control          | Range         | Description                                                                                                                                              |
+| ---------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ON**           | toggle        | Enables pitch shifting. When off, the dry signal passes through unchanged.                                                                               |
+| **pitchShift**   | 0.25 – 4.0   | Transposition ratio. `1.0` = no shift. `0.5` = one octave down. `2.0` = one octave up. `0.25` = two octaves down. `4.0` = two octaves up.              |
+| **pitchMix**     | 0 – 1         | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the shifted signal is heard.                                                             |
+| **pitchWinSize** | 0.02 – 2.0 s | Grain window size in seconds. Smaller values give more responsive but grainier transposition; larger values are smoother but add more latency and smear. |
+| **pitchPchD**    | 0 – 1         | Pitch dispersion. Randomises the transposition ratio independently per grain, spreading the output across a band of pitches. At low values adds a subtle chorus-like spread; higher values produce a dense, cloud-like smear around the target pitch. |
+| **pitchTimeD**   | 0 – 1         | Time dispersion. Randomises the playback position within each grain, loosening the temporal coherence. Adds a diffuse, washed-out quality — higher values approach a reverb-like blur. |
+
+**Tips:**
+- Setting `pitchShift` to `2.0` and `pitchMix` around `0.4` adds a subtle octave-up shimmer without overwhelming the original.
+- `pitchWinSize` around `0.05–0.1 s` works well for percussive Benjolin material; increase to `0.3–0.5 s` for sustained tones.
+- Placing the Pitch Shifter **before** the Reverb in the chain (using the CHAIN strip) lets the reverb tail preserve the shifted pitch, creating a larger sense of space.
+
+---
+
+### Graphic EQ
+
+A 31-band graphic equaliser covering the full ISO octave series from 20 Hz to 20 kHz, with ±24 dB of cut or boost per band. Each band is implemented as a `MidEQ` parametric filter with a 1/6-octave bandwidth; all 31 are applied in series. Band changes are smoothed over 50 ms to prevent clicks.
+
+| Control        | Range    | Description                                                                                                     |
+| -------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
+| **ON**         | toggle   | Enables the EQ. Bypass crossfades smoothly over ~50 ms — no click when toggling.                               |
+| **Band slider** | 0 – 1   | Each of the 31 sliders maps to one ISO band. Centre position (0.5) = 0 dB. Full up = +24 dB. Full down = −24 dB. |
+| **RESET**      | button   | Sets all 31 bands back to 0 dB flat in one click.                                                              |
+
+Frequency labels are shown below the slider at every third band: **20 / 40 / 80 / 160 / 315 / 630 / 1.25k / 2.5k / 5k / 10k / 20k**.
+
+EQ settings are saved and recalled with presets.
+
+**Tips:**
+- A gentle high-shelf cut above 8 kHz can tame the harshness that sometimes appears with high-resonance filter settings.
+- Boosting the 80–250 Hz region adds weight to sparse Benjolin patches; cutting the same region opens up a more abstract, airy texture.
+- Placing the EQ **after** the Resonator in the chain (using the CHAIN strip) lets the EQ sculpt the resonator's harmonic content rather than the raw Benjolin signal.
 
 ---
 
@@ -379,4 +449,4 @@ All sources except CHAOS use values from the **previous audio block** (approxima
 
 ---
 
-_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular._
+_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph, the 31-band graphic EQ using chained `MidEQ` filters, and the granular pitch shifter — is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer._

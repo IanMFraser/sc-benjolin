@@ -15,13 +15,16 @@
 //   MOD B ← TRI A (1)
 //   MOD F ← TRI B (2)
 //
-// Effects chain (three separate, reorderable synths + output stage):
+// Effects chain (six separate, reorderable synths + output stage):
 //   \benjoResonator  — harmonic Ringz bank
 //   \benjoDelay      — ping-pong delay
 //   \benjoReverb     — FreeVerb2 stereo reverb
+//   \benjoFlanger    — comb-filter flanger (BufCombC + LFTri, LocalBuf)
+//   \benjoEQ         — 31-band graphic EQ (MidEQ chain, Control.names array)
+//   \benjoPitch      — granular pitch shifter (PitchShift)
 //   \benjoOut        — reads from ~benjoBus, clips, writes to hardware
 //
-// All three FX synths use ReplaceOut.ar so they read from and write
+// All FX synths use ReplaceOut.ar so they read from and write
 // back to the same bus. Synth.moveAfter / moveBefore can reorder them
 // at runtime without audio dropout.
 // ============================================================
@@ -209,9 +212,62 @@ SynthDef(\benjoReverb, {
 }).add;
 
 
+SynthDef(\benjoFlanger, {
+    | bus=0,
+      flangerOn=0, flangerRate=0.5, flangerRange=100.0,
+      flangerFeedback=0.0, flangerMix=0.5 |
+
+    var sig      = In.ar(bus, 2);
+    // LocalBuf allocates a 1-second buffer per channel, tied to this synth's lifetime.
+    // No external buffer management needed — matches the ReplaceOut / reorderable pattern.
+    var lbuf     = LocalBuf.new(SampleRate.ir, 1);
+    var rbuf     = LocalBuf.new(SampleRate.ir, 1);
+    // flangerRange (Hz): reciprocal = max delay sweep in seconds.
+    // LFTri sweeps 0 → 1/range; +0.0001 keeps delaytime strictly > 0.
+    var delRange = flangerRange.max(1).reciprocal;
+    var mod      = LFTri.kr(flangerRate, 0, delRange * 0.5, delRange * 0.5) + 0.0001;
+    var lout     = LeakDC.ar(BufCombC.ar(lbuf, sig[0], mod, flangerFeedback));
+    var rout     = LeakDC.ar(BufCombC.ar(rbuf, sig[1], mod, flangerFeedback));
+    var wet      = [lout, rout];
+    ReplaceOut.ar(bus, sig + ((wet - sig) * flangerMix * flangerOn));
+}).add;
+
+
+SynthDef(\benjoEQ, {
+    | bus=0, eqOn=0 |
+    // 31-band graphic EQ using Tommi Keränen's MidEQ chain approach (autohazard).
+    // channelGain is an array control: gains in dB, one per ISO octave band.
+    // eqOn smoothly cross-fades dry/wet so bypassing causes no click.
+    var sig         = In.ar(bus, 2);
+    var channelGain = Control.names([\channelGain]).kr(Array.fill(31, 0));
+    var freqs       = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
+                       200, 250, 315, 400, 500, 630, 800, 1000, 1250,
+                       1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000,
+                       10000, 12500, 16000, 20000];
+    var processed = sig;
+    freqs.do { |midfreq, i|
+        processed = MidEQ.ar(processed, midfreq, (1/6), Lag.kr(channelGain.at(i), 0.05));
+    };
+    ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
+}).add;
+
+
+SynthDef(\benjoPitch, {
+    | bus=0,
+      pitchOn=0, pitchShift=1.0, pitchMix=0.5,
+      pitchWinSize=0.2, pitchPchD=0.0, pitchTimeD=0.0 |
+
+    var sig = In.ar(bus, 2);
+    // PitchShift needs winSize >= 0.02 to avoid clicks; shift must be > 0
+    var wet = PitchShift.ar(sig, pitchWinSize.max(0.02), pitchShift.max(0.0001), pitchPchD, pitchTimeD);
+    // Crossfade: pitchOn=0 → dry pass-through; pitchOn=1 → blend dry/wet via pitchMix
+    ReplaceOut.ar(bus, sig + ((wet - sig) * pitchMix * pitchOn));
+}).add;
+
+
 SynthDef(\benjoOut, {
     | in=0, out=0 |
     // Terminal stage: hard-clip and write to hardware.
-    // Must always run after the three FX synths.
+    // Must always run after the four FX synths.
     Out.ar(out, In.ar(in, 2).clip2(0.95));
 }).add;
