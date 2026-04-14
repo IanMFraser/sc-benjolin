@@ -3,25 +3,51 @@
 // Evaluate entire block: Cmd+Shift+Return
 //
 // Loads:
-//   benjolin_synthdefs.scd  — \benjolin and \benjoFX SynthDefs
+//   benjolin_synthdefs.scd  — \benjolin + six FX SynthDefs
 //   benjolin_fx_gui.scd     — FX window factory function
+//
+// Effects chain (six synths, addToTail after \benjolin):
+//   ~benjoRes      \benjoResonator  — harmonic Ringz bank
+//   ~benjoDelay    \benjoDelay      — ping-pong delay
+//   ~benjoReverb   \benjoReverb     — FreeVerb2 reverb
+//   ~benjoFlanger  \benjoFlanger    — comb-filter flanger
+//   ~benjoEQ       \benjoEQ         — 31-band graphic EQ
+//   ~benjoPitch    \benjoPitch      — granular pitch shifter
+//   ~benjoOut      \benjoOut        — output / clip stage (always last)
+//
+// All three FX synths use ReplaceOut on ~benjoBus so they can be
+// reordered live via Synth.moveAfter / moveBefore (drag strips in
+// the FX window).
 // ============================================================
 (
 s.waitForBoot {
     var makeFxWindow;
     var dir = thisProcess.nowExecutingPath.dirname;
 
-    // Load SynthDefs (side effect: adds \benjolin and \benjoFX)
+    // Load SynthDefs (adds \benjolin, \benjoResonator, \benjoDelay, \benjoReverb, \benjoFlanger, \benjoEQ, \benjoPitch, \benjoOut)
     (dir +/+ "benjolin_synthdefs.scd").load;
 
     s.sync;
 
-    // Bus + effects synth — FX synth is the permanent output stage
+    // Bus + effects chain — six synths, always tail after \benjolin
     ~benjoBus.free;
-    ~benjoBus = Bus.audio(s, 2);
-    ~benjoFX  = Synth(\benjoFX, [\in, ~benjoBus, \out, 0], addAction: \addToTail);
+    ~benjoRes      !? { ~benjoRes.free      };
+    ~benjoDelay    !? { ~benjoDelay.free    };
+    ~benjoReverb   !? { ~benjoReverb.free   };
+    ~benjoFlanger  !? { ~benjoFlanger.free  };
+    ~benjoEQ       !? { ~benjoEQ.free       };
+    ~benjoPitch    !? { ~benjoPitch.free    };
+    ~benjoOut      !? { ~benjoOut.free      };
+    ~benjoBus      = Bus.audio(s, 2);
+    ~benjoRes      = Synth(\benjoResonator, [\bus, ~benjoBus.index],           addAction: \addToTail);
+    ~benjoDelay    = Synth(\benjoDelay,     [\bus, ~benjoBus.index],           addAction: \addToTail);
+    ~benjoReverb   = Synth(\benjoReverb,    [\bus, ~benjoBus.index],           addAction: \addToTail);
+    ~benjoFlanger  = Synth(\benjoFlanger,   [\bus, ~benjoBus.index],           addAction: \addToTail);
+    ~benjoEQ       = Synth(\benjoEQ,        [\bus, ~benjoBus.index],           addAction: \addToTail);
+    ~benjoPitch    = Synth(\benjoPitch,     [\bus, ~benjoBus.index],           addAction: \addToTail);
+    ~benjoOut      = Synth(\benjoOut,       [\in,  ~benjoBus.index, \out, 0],  addAction: \addToTail);
 
-    // Load FX window factory — returns { |btn, screen, winW, winH, presetWinW, onClose| }
+    // Load FX window factory — returns { |btn, screen, winW, winH, presetWinW, onClose, fxState, fxKnobs| }
     makeFxWindow = (dir +/+ "benjolin_fx_gui.scd").load;
 
     // ----------------------------------------------------------
@@ -34,7 +60,12 @@ s.waitForBoot {
         var fxState = (
             resonOn: 0, resonFreq: 200.0, resonDecay: 1.5, resonMix: 0.25,
             delayOn: 0, delayTime: 250, delayFeedback: 0.4, delayMix: 0.3,
-            reverbOn: 0, reverbRoom: 0.6, reverbDamp: 0.5, reverbMix: 0.3
+            reverbOn: 0, reverbRoom: 0.6, reverbDamp: 0.5, reverbMix: 0.3,
+            flangerOn: 0, flangerRate: 0.5, flangerRange: 100.0,
+            flangerFeedback: 0.0, flangerMix: 0.5,
+            eqOn: 0, eqGains: Array.fill(31, 0.5),  // 0.5 = 0 dB (centre)
+            pitchOn: 0, pitchShift: 1.0, pitchMix: 0.5, pitchWinSize: 0.2,
+            pitchPchD: 0.0, pitchTimeD: 0.0
         );
         var knobs   = ();  // symbol → EZKnob
         var routes  = ();  // symbol → PopUpMenu
@@ -330,8 +361,31 @@ s.waitForBoot {
             };
             state[\fx] !? { |fs|
                 fs.keysValuesDo { |k, v| fxState[k] = v };
-                ~benjoFX !? { fs.keysValuesDo { |k, v| ~benjoFX.set(k, v) } };
-                // update knob/button visuals if the FX window is currently open
+                // Route each parameter to the synth that owns it
+                [\resonOn, \resonFreq, \resonDecay, \resonMix].do { |p|
+                    fs[p] !? { ~benjoRes    !? { ~benjoRes.set(p,    fs[p]) } };
+                };
+                [\delayOn, \delayTime, \delayFeedback, \delayMix].do { |p|
+                    fs[p] !? { ~benjoDelay  !? { ~benjoDelay.set(p,  fs[p]) } };
+                };
+                [\reverbOn, \reverbRoom, \reverbDamp, \reverbMix].do { |p|
+                    fs[p] !? { ~benjoReverb !? { ~benjoReverb.set(p, fs[p]) } };
+                };
+                [\flangerOn, \flangerRate, \flangerRange, \flangerFeedback, \flangerMix].do { |p|
+                    fs[p] !? { ~benjoFlanger !? { ~benjoFlanger.set(p, fs[p]) } };
+                };
+                [\eqOn].do { |p|
+                    fs[p] !? { ~benjoEQ !? { ~benjoEQ.set(p, fs[p]) } };
+                };
+                fs[\eqGains] !? { |gains|
+                    var dbs = gains.collect { |v| v * 48 - 24 };
+                    ~benjoEQ !? { ~benjoEQ.set(\channelGain, dbs) };
+                    fxKnobs[\eqGains] !? { |msv| msv.value_(gains) };
+                };
+                [\pitchOn, \pitchShift, \pitchMix, \pitchWinSize, \pitchPchD, \pitchTimeD].do { |p|
+                    fs[p] !? { ~benjoPitch !? { ~benjoPitch.set(p, fs[p]) } };
+                };
+                // Update knob/button visuals if the FX window is open
                 fxKnobs !? { fs.keysValuesDo { |k, v| fxKnobs[k] !? { |w| w.value_(v) } } };
             };
         };
@@ -446,9 +500,15 @@ s.waitForBoot {
         };
 
         win.onClose = {
-            synth.free;    synth = nil;
-            ~benjoFX.free; ~benjoFX = nil;
-            ~benjoBus.free; ~benjoBus = nil;
+            synth.free;         synth = nil;
+            ~benjoRes.free;      ~benjoRes      = nil;
+            ~benjoDelay.free;    ~benjoDelay    = nil;
+            ~benjoReverb.free;   ~benjoReverb   = nil;
+            ~benjoFlanger.free;  ~benjoFlanger  = nil;
+            ~benjoEQ.free;       ~benjoEQ       = nil;
+            ~benjoPitch.free;    ~benjoPitch    = nil;
+            ~benjoOut.free;      ~benjoOut      = nil;
+            ~benjoBus.free;     ~benjoBus    = nil;
             presetWin.close;
             fxWin !? { fxWin.close };
         };

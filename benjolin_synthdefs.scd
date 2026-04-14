@@ -14,6 +14,19 @@
 //   MOD A ← TRI B (2)
 //   MOD B ← TRI A (1)
 //   MOD F ← TRI B (2)
+//
+// Effects chain (six separate, reorderable synths + output stage):
+//   \benjoResonator  — harmonic Ringz bank
+//   \benjoDelay      — ping-pong delay
+//   \benjoReverb     — FreeVerb2 stereo reverb
+//   \benjoFlanger    — comb-filter flanger (BufCombC + LFTri, LocalBuf)
+//   \benjoEQ         — 31-band graphic EQ (MidEQ chain, Control.names array)
+//   \benjoPitch      — granular pitch shifter (PitchShift)
+//   \benjoOut        — reads from ~benjoBus, clips, writes to hardware
+//
+// All FX synths use ReplaceOut.ar so they read from and write
+// back to the same bus. Synth.moveAfter / moveBefore can reorder them
+// at runtime without audio dropout.
 // ============================================================
 
 SynthDef(\benjolin, {
@@ -142,25 +155,21 @@ SynthDef(\benjolin, {
 }).add;
 
 
-// ── Effects SynthDef ──────────────────────────────────────
-// Reads from ~benjoBus (stereo), outputs to hardware out.
-// Replaces ~benjoMonitor — always running; effects are bypassed
-// by setting their mix to 0 rather than freeing the synth.
+// ── Effects SynthDefs ─────────────────────────────────────────
+// Each reads from ~benjoBus (stereo) via In.ar, processes, and
+// writes back via ReplaceOut.ar — so they can be reordered in
+// the server node graph at runtime (Synth.moveAfter/moveBefore)
+// without recompilation and without audio dropout.
+//
+// \benjoOut is the terminal stage: reads ~benjoBus, hard-clips,
+// writes to hardware. It must always run last.
 
-SynthDef(\benjoFX, {
-    | in=0, out=0,
-      delayOn=0, delayTime=250, delayFeedback=0.4, delayMix=0.3,
-      reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3,
+SynthDef(\benjoResonator, {
+    | bus=0,
       resonOn=0, resonFreq=200.0, resonDecay=1.5, resonMix=0.25 |
 
-    var dry, sig, delWet, revWet, resWet, smoothReverbMix;
-
-    dry = In.ar(in, 2);
-    sig = dry;
-
-    // ── Harmonic resonator (Ringz bank) ──────────────────
-    // Partials 1–8 of resonFreq; Ringz freq + decay are fully modulatable
-    resWet = {
+    var sig = In.ar(bus, 2);
+    var resWet = {
         var mono = (sig[0] + sig[1]) * 0.5;
         var amps = [1.0, 0.55, 0.38, 0.28, 0.20, 0.16, 0.13, 0.10];
         var bank = 8.collect({ |i|
@@ -168,33 +177,97 @@ SynthDef(\benjoFX, {
         });
         bank.sum * 0.15
     }.value;
-    sig = sig + (Pan2.ar(resWet) * resonMix * resonOn);
+    ReplaceOut.ar(bus, sig + (Pan2.ar(resWet) * resonMix * resonOn));
+}).add;
 
-    // ── Ping-pong delay ──────────────────────────────────
-    // Feedback gated by delayOn so buffer clears when bypassed
-    delWet = {
+
+SynthDef(\benjoDelay, {
+    | bus=0,
+      delayOn=0, delayTime=250, delayFeedback=0.4, delayMix=0.3 |
+
+    var sig = In.ar(bus, 2);
+    var delWet = {
         var fb = LocalIn.ar(2) * delayFeedback * delayOn;
-        var dL = DelayL.ar(dry[0] + fb[1], 2.0, (delayTime * 0.001).max(0.001));
-        var dR = DelayL.ar(dry[1] + fb[0], 2.0, (delayTime * 1.33 * 0.001).max(0.001));
+        var dL = DelayL.ar(sig[0] + fb[1], 2.0, (delayTime * 0.001).max(0.001));
+        var dR = DelayL.ar(sig[1] + fb[0], 2.0, (delayTime * 1.33 * 0.001).max(0.001));
         LocalOut.ar([dL, dR]);
         [dL, dR]
     }.value;
-    sig = sig + (delWet * delayMix * delayOn);
+    ReplaceOut.ar(bus, sig + (delWet * delayMix * delayOn));
+}).add;
 
-    // ── Reverb ───────────────────────────────────────────
-    // Input is gated immediately when reverbOn → 0, so no new signal enters
-    // the delay lines after a preset switch. The output mix fades slowly (3s)
-    // so whatever is already inside FreeVerb2 rings out naturally rather than
-    // being hard-muted — you hear the tail of the previous preset, not the new one.
-    // Input is gated by reverbOn directly (hard snap) — no lag on the way in.
-    // Because smoothReverbMix starts at 0 when reverbOn flips to 1, the output
-    // is multiplied by 0 at the moment of switching, so no dry-signal bleed is
-    // possible regardless of what FreeVerb2 is doing internally.
-    // On the way out, the 3s release lets the tail of the previous preset ring
-    // down naturally rather than being hard-muted.
-    smoothReverbMix = LagUD.kr(reverbMix * reverbOn, 0.3, 3.0);
-    revWet = FreeVerb2.ar(sig[0] * reverbOn, sig[1] * reverbOn, 1.0, reverbRoom, reverbDamp);
-    sig = sig + (revWet * smoothReverbMix);
 
-    Out.ar(out, sig.clip2(0.95));
+SynthDef(\benjoReverb, {
+    | bus=0,
+      reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3 |
+
+    var sig = In.ar(bus, 2);
+    // Input hard-gated by reverbOn (snap), output fades over 3s via LagUD
+    // so the tail of the previous preset rings out naturally on preset switch.
+    // Fast attack (0.3s) means output starts near zero on wet-enable,
+    // preventing dry-signal bleed into the reverb output.
+    var smoothReverbMix = LagUD.kr(reverbMix * reverbOn, 0.3, 3.0);
+    var revWet = FreeVerb2.ar(sig[0] * reverbOn, sig[1] * reverbOn, 1.0, reverbRoom, reverbDamp);
+    ReplaceOut.ar(bus, sig + (revWet * smoothReverbMix));
+}).add;
+
+
+SynthDef(\benjoFlanger, {
+    | bus=0,
+      flangerOn=0, flangerRate=0.5, flangerRange=100.0,
+      flangerFeedback=0.0, flangerMix=0.5 |
+
+    var sig      = In.ar(bus, 2);
+    // LocalBuf allocates a 1-second buffer per channel, tied to this synth's lifetime.
+    // No external buffer management needed — matches the ReplaceOut / reorderable pattern.
+    var lbuf     = LocalBuf.new(SampleRate.ir, 1);
+    var rbuf     = LocalBuf.new(SampleRate.ir, 1);
+    // flangerRange (Hz): reciprocal = max delay sweep in seconds.
+    // LFTri sweeps 0 → 1/range; +0.0001 keeps delaytime strictly > 0.
+    var delRange = flangerRange.max(1).reciprocal;
+    var mod      = LFTri.kr(flangerRate, 0, delRange * 0.5, delRange * 0.5) + 0.0001;
+    var lout     = LeakDC.ar(BufCombC.ar(lbuf, sig[0], mod, flangerFeedback));
+    var rout     = LeakDC.ar(BufCombC.ar(rbuf, sig[1], mod, flangerFeedback));
+    var wet      = [lout, rout];
+    ReplaceOut.ar(bus, sig + ((wet - sig) * flangerMix * flangerOn));
+}).add;
+
+
+SynthDef(\benjoEQ, {
+    | bus=0, eqOn=0 |
+    // 31-band graphic EQ using Tommi Keränen's MidEQ chain approach (autohazard).
+    // channelGain is an array control: gains in dB, one per ISO octave band.
+    // eqOn smoothly cross-fades dry/wet so bypassing causes no click.
+    var sig         = In.ar(bus, 2);
+    var channelGain = Control.names([\channelGain]).kr(Array.fill(31, 0));
+    var freqs       = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
+                       200, 250, 315, 400, 500, 630, 800, 1000, 1250,
+                       1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000,
+                       10000, 12500, 16000, 20000];
+    var processed = sig;
+    freqs.do { |midfreq, i|
+        processed = MidEQ.ar(processed, midfreq, (1/6), Lag.kr(channelGain.at(i), 0.05));
+    };
+    ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
+}).add;
+
+
+SynthDef(\benjoPitch, {
+    | bus=0,
+      pitchOn=0, pitchShift=1.0, pitchMix=0.5,
+      pitchWinSize=0.2, pitchPchD=0.0, pitchTimeD=0.0 |
+
+    var sig = In.ar(bus, 2);
+    // PitchShift needs winSize >= 0.02 to avoid clicks; shift must be > 0
+    var wet = PitchShift.ar(sig, pitchWinSize.max(0.02), pitchShift.max(0.0001), pitchPchD, pitchTimeD);
+    // Crossfade: pitchOn=0 → dry pass-through; pitchOn=1 → blend dry/wet via pitchMix
+    ReplaceOut.ar(bus, sig + ((wet - sig) * pitchMix * pitchOn));
+}).add;
+
+
+SynthDef(\benjoOut, {
+    | in=0, out=0 |
+    // Terminal stage: hard-clip and write to hardware.
+    // Must always run after the four FX synths.
+    Out.ar(out, In.ar(in, 2).clip2(0.95));
 }).add;
