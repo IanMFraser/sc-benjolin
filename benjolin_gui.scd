@@ -3,25 +3,42 @@
 // Evaluate entire block: Cmd+Shift+Return
 //
 // Loads:
-//   benjolin_synthdefs.scd  — \benjolin and \benjoFX SynthDefs
+//   benjolin_synthdefs.scd  — \benjolin + four FX SynthDefs
 //   benjolin_fx_gui.scd     — FX window factory function
+//
+// Effects chain (four synths, addToTail after \benjolin):
+//   ~benjoRes    \benjoResonator  — harmonic Ringz bank
+//   ~benjoDelay  \benjoDelay      — ping-pong delay
+//   ~benjoReverb \benjoReverb     — FreeVerb2 reverb
+//   ~benjoOut    \benjoOut        — output / clip stage (always last)
+//
+// All three FX synths use ReplaceOut on ~benjoBus so they can be
+// reordered live via Synth.moveAfter / moveBefore (drag strips in
+// the FX window).
 // ============================================================
 (
 s.waitForBoot {
     var makeFxWindow;
     var dir = thisProcess.nowExecutingPath.dirname;
 
-    // Load SynthDefs (side effect: adds \benjolin and \benjoFX)
+    // Load SynthDefs (adds \benjolin, \benjoResonator, \benjoDelay, \benjoReverb, \benjoOut)
     (dir +/+ "benjolin_synthdefs.scd").load;
 
     s.sync;
 
-    // Bus + effects synth — FX synth is the permanent output stage
+    // Bus + effects chain — four synths, always tail after \benjolin
     ~benjoBus.free;
-    ~benjoBus = Bus.audio(s, 2);
-    ~benjoFX  = Synth(\benjoFX, [\in, ~benjoBus, \out, 0], addAction: \addToTail);
+    ~benjoRes    !? { ~benjoRes.free    };
+    ~benjoDelay  !? { ~benjoDelay.free  };
+    ~benjoReverb !? { ~benjoReverb.free };
+    ~benjoOut    !? { ~benjoOut.free    };
+    ~benjoBus    = Bus.audio(s, 2);
+    ~benjoRes    = Synth(\benjoResonator, [\bus, ~benjoBus.index],             addAction: \addToTail);
+    ~benjoDelay  = Synth(\benjoDelay,     [\bus, ~benjoBus.index],             addAction: \addToTail);
+    ~benjoReverb = Synth(\benjoReverb,    [\bus, ~benjoBus.index],             addAction: \addToTail);
+    ~benjoOut    = Synth(\benjoOut,        [\in,  ~benjoBus.index, \out, 0],   addAction: \addToTail);
 
-    // Load FX window factory — returns { |btn, screen, winW, winH, presetWinW, onClose| }
+    // Load FX window factory — returns { |btn, screen, winW, winH, presetWinW, onClose, fxState, fxKnobs| }
     makeFxWindow = (dir +/+ "benjolin_fx_gui.scd").load;
 
     // ----------------------------------------------------------
@@ -330,8 +347,17 @@ s.waitForBoot {
             };
             state[\fx] !? { |fs|
                 fs.keysValuesDo { |k, v| fxState[k] = v };
-                ~benjoFX !? { fs.keysValuesDo { |k, v| ~benjoFX.set(k, v) } };
-                // update knob/button visuals if the FX window is currently open
+                // Route each parameter to the synth that owns it
+                [\resonOn, \resonFreq, \resonDecay, \resonMix].do { |p|
+                    fs[p] !? { ~benjoRes    !? { ~benjoRes.set(p,    fs[p]) } };
+                };
+                [\delayOn, \delayTime, \delayFeedback, \delayMix].do { |p|
+                    fs[p] !? { ~benjoDelay  !? { ~benjoDelay.set(p,  fs[p]) } };
+                };
+                [\reverbOn, \reverbRoom, \reverbDamp, \reverbMix].do { |p|
+                    fs[p] !? { ~benjoReverb !? { ~benjoReverb.set(p, fs[p]) } };
+                };
+                // Update knob/button visuals if the FX window is open
                 fxKnobs !? { fs.keysValuesDo { |k, v| fxKnobs[k] !? { |w| w.value_(v) } } };
             };
         };
@@ -446,9 +472,12 @@ s.waitForBoot {
         };
 
         win.onClose = {
-            synth.free;    synth = nil;
-            ~benjoFX.free; ~benjoFX = nil;
-            ~benjoBus.free; ~benjoBus = nil;
+            synth.free;         synth = nil;
+            ~benjoRes.free;     ~benjoRes    = nil;
+            ~benjoDelay.free;   ~benjoDelay  = nil;
+            ~benjoReverb.free;  ~benjoReverb = nil;
+            ~benjoOut.free;     ~benjoOut    = nil;
+            ~benjoBus.free;     ~benjoBus    = nil;
             presetWin.close;
             fxWin !? { fxWin.close };
         };
