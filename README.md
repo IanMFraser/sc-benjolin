@@ -14,7 +14,7 @@ The Rungler is not a random noise source. It is a **deterministic chaotic circui
 
 The hardware Benjolin is a standalone instrument, typically built into a wooden box with two oscillators, a filter, and a set of patch points. The **Epoch Modular Benjolin** is a Eurorack adaptation with a front-panel layout that exposes the core controls while adding CV inputs and a richer modulation structure.
 
-This SuperCollider implementation follows the Epoch Modular design closely, then extends it with a software-only Chaos Automaton, a spatial panning section, and a preset matrix.
+This SuperCollider implementation follows the Epoch Modular design closely, then extends it with a Chaos Automaton, a spatial panning section, a preset matrix, and effects.
 
 ---
 
@@ -29,11 +29,11 @@ This SuperCollider implementation follows the Epoch Modular design closely, then
 
 The implementation is split across three files that must be kept in the same folder:
 
-| File | Purpose |
-|---|---|
-| `benjolin_gui.scd` | **Entry point.** Open and evaluate this file. Loads the other two automatically. |
+| File                     | Purpose                                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `benjolin_gui.scd`       | **Entry point.** Open and evaluate this file. Loads the other two automatically.                               |
 | `benjolin_synthdefs.scd` | SynthDef definitions (`\benjolin` and all five FX synths). Loaded by the main file — do not evaluate directly. |
-| `benjolin_fx_gui.scd` | FX window code. Loaded by the main file — do not evaluate directly. |
+| `benjolin_fx_gui.scd`    | FX window code. Loaded by the main file — do not evaluate directly.                                            |
 
 Only `benjolin_gui.scd` needs to be opened. It locates the other files relative to its own path and loads them automatically at startup.
 
@@ -169,12 +169,12 @@ A software-only extension that drives Benjolin parameters from mathematical stra
 
 #### Source Selection
 
-| Button     | Attractor               | Character                                                                                                                                    |
-| ---------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **OFF**    | None                    | Chaos system disabled; no CPU overhead.                                                                                                      |
-| **HÉNON**  | Hénon map               | Bounded, relatively tame. Oscillates within a constrained range — good for subtle, organic variation. The classic "strange attractor" shape. |
-| **GBMAN**  | Gingerbread Man map     | More angular and discontinuous. Tends to jump between regions — good for rhythmic, stuttering modulation.                                    |
-| **STDMAP** | Standard map (Chirikov) | Most variable. Can switch between quasi-periodic and fully chaotic regimes depending on the `chaosRate` value.                               |
+| Button     | Attractor                  | Character                                                                                                                                                                                                     |
+| ---------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OFF**    | None                       | Chaos system disabled; no CPU overhead.                                                                                                                                                                       |
+| **HÉNON**  | Hénon map                  | Bounded, relatively tame. Oscillates within a constrained range — good for subtle, organic variation. The classic "strange attractor" shape.                                                                  |
+| **GBMAN**  | Gingerbread Man map        | More angular and discontinuous. Tends to jump between regions — good for rhythmic, stuttering modulation.                                                                                                     |
+| **STDMAP** | Standard map (Chirikov)    | Most variable. Can switch between quasi-periodic and fully chaotic regimes depending on the `chaosRate` value.                                                                                                |
 | **GENDY**  | Gendy stochastic synthesis | Generates chaos through randomised breakpoint waveforms. Softer and more tonal than the map-based attractors; evolves gradually rather than jumping. `chaosRate` scales the frequency range of the generator. |
 
 #### Chaos Rate
@@ -184,7 +184,7 @@ A software-only extension that drives Benjolin parameters from mathematical stra
 - **< 1 Hz** — Slow drift; parameters wander gradually over many seconds
 - **1–20 Hz** — Rhythmic territory; chaos has a perceivable pulse
 - **20–100 Hz** — Fast modulation; begins to colour the timbre directly
-- **> 100 Hz** — Pseudo audio-rate FM; use with care on oscillator targets
+- **> 100 Hz** — Pseudo audio-rate FM
 
 #### Chaos Depth Controls
 
@@ -205,13 +205,6 @@ Two types of targets, with distinct musical effects:
 | **chaosRunB** | 0 – 1 | Chaos modulates the effective runB amount.                                                   |
 | **chaosRunF** | 0 – 1 | Chaos modulates the effective runF amount — the filter cutoff breathes with the attractor.   |
 
-**Suggested starting patches:**
-
-- _Slow drift_: HÉNON, rate 0.5, chaosRunF 0.4 — the filter cutoff drifts slowly, organically
-- _Rhythmic instability_: GBMAN, rate 8, chaosOscB 0.3 — the clock OSC wobbles, Rungler patterns constantly shift length
-- _Wild FM_: STDMAP, rate 30, chaosOscA 1.5 — dramatic pitch chaos with the Rungler still active underneath
-- _Soft organic movement_: GENDY, rate 2, chaosRunA 0.3, chaosRunF 0.3 — gentle stochastic sculpting of the Rungler feedback depth
-
 ---
 
 ### SPATIAL
@@ -223,13 +216,6 @@ Controls the position of the output in the stereo field, with optional modulatio
 | **pan**            | −1 – +1 | Base stereo position. −1 = hard left, 0 = centre, +1 = hard right.                                                                                                     |
 | **panMod**         | 0 – 1   | How far the selected source can push the pan position away from the base. At 0, the source has no effect. At 1, the source has full range (up to ±1 from the base).    |
 | **PAN MOD SOURCE** | 0 – 8   | The signal driving pan modulation. Same 8 internal sources as the MOD routing matrix, plus **CHAOS** (index 8) which uses the currently active chaos attractor output. |
-
-**Musically interesting pan sources:**
-
-- **RUNGLER** — The same staircase CV that controls pitch also steps the stereo position. Pitch and space become rhythmically locked.
-- **XOR** — Hard left/right flicker at the XOR logic rate. At low oscillator frequencies this becomes a tremolo-like effect; at higher rates it smears into a perceived width.
-- **TRI B** — Smooth sinusoidal panning at OSC B's frequency — a classic auto-pan.
-- **CHAOS** — Organic, non-repeating spatial movement driven by the attractor.
 
 ---
 
@@ -255,12 +241,12 @@ The chain order resets to default when the FX window is closed. It is not saved 
 
 A ping-pong stereo delay. The left and right channels feed into each other across repeats, bouncing the signal between the stereo field.
 
-| Control      | Range        | Description                                                                                     |
-| ------------ | ------------ | ----------------------------------------------------------------------------------------------- |
-| **ON**       | toggle       | Enables the delay. When off, the feedback buffer drains cleanly — no burst on re-enable.        |
-| **delayTime**    | 10–1000 ms   | Time between repeats, displayed in milliseconds. The right channel delay is fixed at 1.33× the left, creating the ping-pong offset. |
-| **delayFeedback** | 0–0.95  | How much of each repeat feeds back into the next. High values produce long trails; approaching 1.0 creates near-infinite repeats. |
-| **delayMix** | 0–1          | Wet level added on top of the dry signal.                                                       |
+| Control           | Range      | Description                                                                                                                         |
+| ----------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **ON**            | toggle     | Enables the delay. When off, the feedback buffer drains cleanly — no burst on re-enable.                                            |
+| **delayTime**     | 10–1000 ms | Time between repeats, displayed in milliseconds. The right channel delay is fixed at 1.33× the left, creating the ping-pong offset. |
+| **delayFeedback** | 0–0.95     | How much of each repeat feeds back into the next. High values produce long trails; approaching 1.0 creates near-infinite repeats.   |
+| **delayMix**      | 0–1        | Wet level added on top of the dry signal.                                                                                           |
 
 ---
 
@@ -268,12 +254,12 @@ A ping-pong stereo delay. The left and right channels feed into each other acros
 
 A stereo algorithmic reverb based on FreeVerb.
 
-| Control       | Range | Description                                                                                   |
-| ------------- | ----- | --------------------------------------------------------------------------------------------- |
-| **ON**        | toggle | Enables the reverb.                                                                          |
-| **reverbRoom** | 0–1  | Room size. Larger values produce longer, more diffuse tails.                                  |
-| **reverbDamp** | 0–1  | High-frequency damping. Higher values absorb treble in the tail, producing a warmer reverb.   |
-| **reverbMix**  | 0–1  | Wet/dry balance. At 0 the signal is unaffected; at 1 the output is fully wet.                |
+| Control        | Range  | Description                                                                                 |
+| -------------- | ------ | ------------------------------------------------------------------------------------------- |
+| **ON**         | toggle | Enables the reverb.                                                                         |
+| **reverbRoom** | 0–1    | Room size. Larger values produce longer, more diffuse tails.                                |
+| **reverbDamp** | 0–1    | High-frequency damping. Higher values absorb treble in the tail, producing a warmer reverb. |
+| **reverbMix**  | 0–1    | Wet/dry balance. At 0 the signal is unaffected; at 1 the output is fully wet.               |
 
 ---
 
@@ -281,14 +267,12 @@ A stereo algorithmic reverb based on FreeVerb.
 
 A bank of eight `Ringz` resonant filters tuned to the harmonic series of a fundamental frequency. When excited by the Benjolin's output, the bank rings at those partials, imposing a tonal centre on otherwise chaotic material. Unlike the Klank UGen, all parameters update in real time.
 
-| Control       | Range        | Description                                                                                        |
-| ------------- | ------------ | -------------------------------------------------------------------------------------------------- |
-| **ON**        | toggle       | Enables the resonator.                                                                             |
-| **resonFreq** | 20–2000 Hz   | Fundamental frequency of the resonator bank. Partials 1–8 are tuned to integer multiples of this value. |
+| Control        | Range      | Description                                                                                                         |
+| -------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| **ON**         | toggle     | Enables the resonator.                                                                                              |
+| **resonFreq**  | 20–2000 Hz | Fundamental frequency of the resonator bank. Partials 1–8 are tuned to integer multiples of this value.             |
 | **resonDecay** | 0.1–8.0 s  | Ring time for each partial. Short values give a percussive click; longer values produce sustained, bell-like tones. |
-| **resonMix**  | 0–1          | Wet level of the resonator added to the signal.                                                    |
-
-**Tip:** tuning `resonFreq` to match or harmonically relate to `oscA` creates a feedback-like coherence between the Benjolin's pitch and the resonator's colouration. Slow Rungler movement with a long `resonDecay` produces evolving, chord-like clouds.
+| **resonMix**   | 0–1        | Wet level of the resonator added to the signal.                                                                     |
 
 ---
 
@@ -296,18 +280,13 @@ A bank of eight `Ringz` resonant filters tuned to the harmonic series of a funda
 
 A stereo comb-filter flanger. An LFTri oscillator sweeps the delay time of a `BufCombC` filter, creating the characteristic through-zero flanging and comb-filter phasing. Left and right channels share the same modulator, producing a coherent stereo image rather than independent random wobble. The design is adapted directly from Tommi Keränen's Autohazard flanger.
 
-| Control             | Range          | Description                                                                                                                                                                          |
-| ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **ON**              | toggle         | Enables the flanger. When off, the dry signal passes through unchanged.                                                                                                              |
-| **flangerRate**     | 0.05 – 20 Hz   | Speed of the LFTri sweep. Slow rates (0.1–1 Hz) produce classic jet-plane flanging; faster rates enter chorus and vibrato territory.                                                |
-| **flangerRange**    | 10 – 500 Hz    | Sets the frequency range of the comb-filter sweep. This is specified as a frequency in Hz — the reciprocal gives the maximum delay time in seconds. Higher values produce shorter delays and move the comb teeth higher in the spectrum. |
-| **flangerFeedback** | 0 – 6.0 s      | The 60 dB decay time of the internal comb filter. At `0`, each sweep is a single pass with no ringing. Higher values produce increasingly resonant, singing comb resonances. Values above 3–4 s can become quite intense. |
-| **flangerMix**      | 0 – 1          | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the flanged signal is heard.                                                                                        |
-
-**Tips:**
-- `flangerRate` around `0.3–0.8 Hz` with `flangerRange` around `80–120` Hz is the classic tape-flanger sweet spot.
-- Increasing `flangerFeedback` to `1.5–3 s` while keeping `flangerMix` low (~0.3) adds a subtle metallic resonance without overwhelming the source.
-- The flanger responds well to Benjolin's irregular rhythms — placing it **after** the Delay in the chain means the delay echoes are also flanged, compounding the effect.
+| Control             | Range        | Description                                                                                                                                                                                                                              |
+| ------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ON**              | toggle       | Enables the flanger. When off, the dry signal passes through unchanged.                                                                                                                                                                  |
+| **flangerRate**     | 0.05 – 20 Hz | Speed of the LFTri sweep. Slow rates (0.1–1 Hz) produce classic jet-plane flanging; faster rates enter chorus and vibrato territory.                                                                                                     |
+| **flangerRange**    | 10 – 500 Hz  | Sets the frequency range of the comb-filter sweep. This is specified as a frequency in Hz — the reciprocal gives the maximum delay time in seconds. Higher values produce shorter delays and move the comb teeth higher in the spectrum. |
+| **flangerFeedback** | 0 – 6.0 s    | The 60 dB decay time of the internal comb filter. At `0`, each sweep is a single pass with no ringing. Higher values produce increasingly resonant, singing comb resonances. Values above 3–4 s can become quite intense.                |
+| **flangerMix**      | 0 – 1        | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the flanged signal is heard.                                                                                                                                             |
 
 ---
 
@@ -315,19 +294,14 @@ A stereo comb-filter flanger. An LFTri oscillator sweeps the delay time of a `Bu
 
 A granular pitch shifter based on the `PitchShift` UGen. The input signal is divided into short overlapping grains, each transposed by the shift ratio, then reassembled. This produces smooth transposition at the cost of a small latency proportional to the window size.
 
-| Control          | Range         | Description                                                                                                                                              |
-| ---------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ON**           | toggle        | Enables pitch shifting. When off, the dry signal passes through unchanged.                                                                               |
-| **pitchShift**   | 0.25 – 4.0   | Transposition ratio. `1.0` = no shift. `0.5` = one octave down. `2.0` = one octave up. `0.25` = two octaves down. `4.0` = two octaves up.              |
-| **pitchMix**     | 0 – 1         | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the shifted signal is heard.                                                             |
-| **pitchWinSize** | 0.02 – 2.0 s | Grain window size in seconds. Smaller values give more responsive but grainier transposition; larger values are smoother but add more latency and smear. |
-| **pitchPchD**    | 0 – 1         | Pitch dispersion. Randomises the transposition ratio independently per grain, spreading the output across a band of pitches. At low values adds a subtle chorus-like spread; higher values produce a dense, cloud-like smear around the target pitch. |
-| **pitchTimeD**   | 0 – 1         | Time dispersion. Randomises the playback position within each grain, loosening the temporal coherence. Adds a diffuse, washed-out quality — higher values approach a reverb-like blur. |
-
-**Tips:**
-- Setting `pitchShift` to `2.0` and `pitchMix` around `0.4` adds a subtle octave-up shimmer without overwhelming the original.
-- `pitchWinSize` around `0.05–0.1 s` works well for percussive Benjolin material; increase to `0.3–0.5 s` for sustained tones.
-- Placing the Pitch Shifter **before** the Reverb in the chain (using the CHAIN strip) lets the reverb tail preserve the shifted pitch, creating a larger sense of space.
+| Control          | Range        | Description                                                                                                                                                                                                                                           |
+| ---------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ON**           | toggle       | Enables pitch shifting. When off, the dry signal passes through unchanged.                                                                                                                                                                            |
+| **pitchShift**   | 0.25 – 4.0   | Transposition ratio. `1.0` = no shift. `0.5` = one octave down. `2.0` = one octave up. `0.25` = two octaves down. `4.0` = two octaves up.                                                                                                             |
+| **pitchMix**     | 0 – 1        | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the shifted signal is heard.                                                                                                                                                          |
+| **pitchWinSize** | 0.02 – 2.0 s | Grain window size in seconds. Smaller values give more responsive but grainier transposition; larger values are smoother but add more latency and smear.                                                                                              |
+| **pitchPchD**    | 0 – 1        | Pitch dispersion. Randomises the transposition ratio independently per grain, spreading the output across a band of pitches. At low values adds a subtle chorus-like spread; higher values produce a dense, cloud-like smear around the target pitch. |
+| **pitchTimeD**   | 0 – 1        | Time dispersion. Randomises the playback position within each grain, loosening the temporal coherence. Adds a diffuse, washed-out quality — higher values approach a reverb-like blur.                                                                |
 
 ---
 
@@ -335,20 +309,15 @@ A granular pitch shifter based on the `PitchShift` UGen. The input signal is div
 
 A 31-band graphic equaliser covering the full ISO octave series from 20 Hz to 20 kHz, with ±24 dB of cut or boost per band. Each band is implemented as a `MidEQ` parametric filter with a 1/6-octave bandwidth; all 31 are applied in series. Band changes are smoothed over 50 ms to prevent clicks.
 
-| Control        | Range    | Description                                                                                                     |
-| -------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
-| **ON**         | toggle   | Enables the EQ. Bypass crossfades smoothly over ~50 ms — no click when toggling.                               |
-| **Band slider** | 0 – 1   | Each of the 31 sliders maps to one ISO band. Centre position (0.5) = 0 dB. Full up = +24 dB. Full down = −24 dB. |
-| **RESET**      | button   | Sets all 31 bands back to 0 dB flat in one click.                                                              |
+| Control         | Range  | Description                                                                                                      |
+| --------------- | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| **ON**          | toggle | Enables the EQ. Bypass crossfades smoothly over ~50 ms — no click when toggling.                                 |
+| **Band slider** | 0 – 1  | Each of the 31 sliders maps to one ISO band. Centre position (0.5) = 0 dB. Full up = +24 dB. Full down = −24 dB. |
+| **RESET**       | button | Sets all 31 bands back to 0 dB flat in one click.                                                                |
 
 Frequency labels are shown below the slider at every third band: **20 / 40 / 80 / 160 / 315 / 630 / 1.25k / 2.5k / 5k / 10k / 20k**.
 
 EQ settings are saved and recalled with presets.
-
-**Tips:**
-- A gentle high-shelf cut above 8 kHz can tame the harshness that sometimes appears with high-resonance filter settings.
-- Boosting the 80–250 Hz region adds weight to sparse Benjolin patches; cutting the same region opens up a more abstract, airy texture.
-- Placing the EQ **after** the Resonator in the chain (using the CHAIN strip) lets the EQ sculpt the resonator's harmonic content rather than the raw Benjolin signal.
 
 ---
 
@@ -408,20 +377,6 @@ The auto-save file lives at:
 
 ---
 
-## Tips and Techniques
-
-**Finding a sweet spot:** The Benjolin's most interesting behaviour lives at the edge between locked repeating patterns and full chaos. Start with runA and runB around 0.3, then slowly raise one while listening for the pattern to shift. Micro-adjustments to oscA/oscB ratio while the Rungler is active can be dramatic.
-
-**Using the loop:** Activate the loop switch while the Rungler is doing something interesting. The shift register locks into its current state and begins repeating. You can then adjust the filter, resonance, and modulation without the pattern changing — useful for textural work.
-
-**Chaos + Rungler interaction:** Because the chaos automaton can modulate the Rungler depth (runA/runB/runF) in real time, it effectively rewires the Benjolin's feedback topology continuously. Combining a slow attractor (0.2–2 Hz) on chaosRunA and chaosRunB with the Rungler active produces slowly evolving patterns that never quite repeat.
-
-**Panning with internal signals:** Routing RUNGLER to the pan source with panMod around 0.4–0.6 creates spatial movement that is rhythmically locked to the pitch content. The same Rungler steps that control the melody also sweep the stereo position — a coherent, unified gesture.
-
-**Preset workflow:** Save a series of presets that represent different "moods" of the instrument — one chaotic, one locked-loop, one filter-focused. In performance, recall them in order or jump non-linearly. Because recall updates the live synth immediately, transitions are instantaneous.
-
----
-
 ## Reference: Signal Sources (Routing Matrix)
 
 | Index | Name    | Signal Description                              |
@@ -449,4 +404,4 @@ All sources except CHAOS use values from the **previous audio block** (approxima
 
 ---
 
-_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph, the 31-band graphic EQ using chained `MidEQ` filters, and the granular pitch shifter — is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer._
+_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph, the 31-band graphic EQ using chained `MidEQ` filters, flanger, and the granular pitch shifter — is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer._
