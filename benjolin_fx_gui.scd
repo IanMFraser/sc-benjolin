@@ -16,33 +16,34 @@
 // ============================================================
 
 { |btn, screen, winW, winH, presetWinW, onClose, fxState, fxKnobs|
-    var fxWinW = 500, fxWinH = 460;
+    var fxWinW = 500, fxWinH = 840;
     var eqLimitDB = 24;
     var eqGainsDbs;
     var fxX    = (screen.width - winW - 8 - presetWinW) / 2;
     var fxY    = (screen.height - winH) / 2 + winH + 8;
     var fxWin;
 
-    // chainOrder[slot] = effect index: 0=delay 1=reverb 2=eq
-    var chainOrder   = [0, 1, 2];
-    var chainNames   = ["DELAY", "REVERB", "EQ"];
-    var chainBtns    = [nil, nil, nil];
+    // chainOrder[slot] = effect index: 0=delay 1=reverb 2=eq 3=resonator
+    var chainOrder   = [0, 1, 2, 3];
+    var chainNames   = ["RES","DELAY", "REVERB", "EQ"];
+    var chainBtns    = [nil, nil, nil, nil];
     var selectedSlot = nil;   // slot index of the currently armed button, or nil
 
     var applyChainOrder = {
-        var synths  = [~benjoDelay, ~benjoReverb, ~benjoEQ];
+        var synths  = [~benjoResonator, ~benjoDelay, ~benjoReverb, ~benjoEQ];
         var ordered = chainOrder.collect({ |ei| synths[ei] });
         ordered[0] !? {
             ordered[0].moveBefore(~benjoOut);
             ordered[1] !? { ordered[1].moveAfter(ordered[0]) };
             ordered[2] !? { ordered[2].moveAfter(ordered[1]) };
-            ~benjoOut  !? { ~benjoOut.moveAfter(ordered[2])  };
+            ordered[3] !? { ordered[3].moveAfter(ordered[2]) };
+            ~benjoOut  !? { ~benjoOut.moveAfter(ordered[3])  };
         };
     };
 
-    // Redraw all three chain buttons to reflect chainOrder and selectedSlot.
+    // Redraw all four chain buttons to reflect chainOrder and selectedSlot.
     var refreshChainBtns = {
-        3.do { |i|
+        4.do { |i|
             chainBtns[i] !? { |b|
                 var armed = (i == selectedSlot);
                 b.states_([[
@@ -124,6 +125,27 @@
         b
     };
 
+    // Phase polarity toggle for resonator bands. fxState stores 0=normal / 1=inverted.
+    // The synth receives ±1 (converted in the action); Button .value_ works with 0/1 directly.
+    var mkPolBtn = { |band, x, y|
+        var paramName = ("pol" ++ band).asSymbol;
+        var initVal   = fxState[paramName] ?? 0;
+        var b = Button(fxWin, Rect(x, y, 80, 28))
+            .states_([
+                ["+", Color(0.72, 0.72, 1.0), Color(0.15, 0.15, 0.22)],
+                ["−", Color(1.0,  0.5,  0.5), Color(0.25, 0.08, 0.08)]
+            ])
+            .font_(Font.sansSerif(14, true))
+            .value_(initVal)
+            .action_({ |btn|
+                var polVal = (btn.value == 0).if(1, -1);
+                ~benjoResonator !? { ~benjoResonator.set(paramName, polVal) };
+                fxState[paramName] = btn.value;
+            });
+        fxKnobs[paramName] = b;
+        b
+    };
+
     // Initialize EQ dB array from fxState (stored as 0-1 UI values, 0.5 = 0 dB)
     eqGainsDbs = (fxState[\eqGains] ?? Array.fill(31, 0.5)).collect { |v| v * (eqLimitDB * 2) - eqLimitDB };
 
@@ -138,26 +160,26 @@
         .stringColor_(Color.white);
 
     // ── DELAY ─────────────────────────────────────────────
-    mkFXLabel.("── DELAY ─── ping-pong ─────────────────────", 15, 80);
-    mkOnBtn.(\delayOn,        15, 108, { ~benjoDelay });
-    mkFXKnob.(\delayTime,     10, 1000, \exp, 0,     250,  110, 90, { ~benjoDelay });
-    mkFXKnob.(\delayFeedback,  0, 0.95, \lin, 0.001, 0.4,  205, 90, { ~benjoDelay });
-    mkFXKnob.(\delayMix,       0, 1.0,  \lin, 0.001, 0.3,  300, 90, { ~benjoDelay });
+    mkFXLabel.("── DELAY ─── ping-pong ─────────────────────", 15, 484);
+    mkOnBtn.(\delayOn,        15, 512, { ~benjoDelay });
+    mkFXKnob.(\delayTime,     10, 1000, \exp, 0,     250,  110, 494, { ~benjoDelay });
+    mkFXKnob.(\delayFeedback,  0, 0.95, \lin, 0.001, 0.4,  205, 494, { ~benjoDelay });
+    mkFXKnob.(\delayMix,       0, 1.0,  \lin, 0.001, 0.3,  300, 494, { ~benjoDelay });
 
     // ── REVERB ────────────────────────────────────────────
-    mkFXLabel.("── REVERB ───────────────────────────────────", 15, 198);
-    mkOnBtn.(\reverbOn,      15, 226, { ~benjoReverb });
-    mkFXKnob.(\reverbRoom,    0, 1.0, \lin, 0.001, 0.6, 110, 208, { ~benjoReverb });
-    mkFXKnob.(\reverbDamp,    0, 1.0, \lin, 0.001, 0.5, 205, 208, { ~benjoReverb });
-    mkFXKnob.(\reverbMix,     0, 1.0, \lin, 0.001, 0.3, 300, 208, { ~benjoReverb });
+    mkFXLabel.("── REVERB ───────────────────────────────────", 15, 602);
+    mkOnBtn.(\reverbOn,      15, 630, { ~benjoReverb });
+    mkFXKnob.(\reverbRoom,    0, 1.0, \lin, 0.001, 0.6, 110, 612, { ~benjoReverb });
+    mkFXKnob.(\reverbDamp,    0, 1.0, \lin, 0.001, 0.5, 205, 612, { ~benjoReverb });
+    mkFXKnob.(\reverbMix,     0, 1.0, \lin, 0.001, 0.3, 300, 612, { ~benjoReverb });
 
     // ── GRAPHIC EQ ────────────────────────────────────────
     // 31 ISO octave bands, ±24 dB. MultiSliderView maps 0.0–1.0 → −24..+24 dB.
     // Stored in fxState[\eqGains] as 0–1 values; eqGainsDbs[] holds live dB values.
-    mkFXLabel.("── GRAPHIC EQ ─── ±24 dB per band ─────────", 15, 316);
-    mkOnBtn.(\eqOn, 15, 332, { ~benjoEQ });
+    mkFXLabel.("── GRAPHIC EQ ─── ±24 dB per band ─────────", 15, 720);
+    mkOnBtn.(\eqOn, 15, 736, { ~benjoEQ });
 
-    Button(fxWin, Rect(15, 374, 80, 26))
+    Button(fxWin, Rect(15, 778, 80, 26))
         .states_([["RESET", Color(1.0, 0.6, 0.3), Color(0.13, 0.1, 0.07)]])
         .font_(Font.sansSerif(9, true))
         .action_({
@@ -170,7 +192,7 @@
 
     {
         var sliderW = 385;
-        var msv = MultiSliderView(fxWin, Rect(100, 332, sliderW, 70))
+        var msv = MultiSliderView(fxWin, Rect(100, 736, sliderW, 70))
             .size_(31)
             .indexThumbSize_(sliderW / 31)
             .isFilled_(true)
@@ -181,7 +203,7 @@
             .strokeColor_(Color(0.3, 0.6, 0.9));
 
         // Centre line (0 dB reference)
-        UserView(fxWin, Rect(100, 367, sliderW, 1))
+        UserView(fxWin, Rect(100, 771, sliderW, 1))
             .background_(Color(0.4, 0.4, 0.5, 0.5));
 
         // Band frequency labels — every 3rd ISO band
@@ -190,7 +212,7 @@
             var labelStrs = ["20", "40", "80", "160", "315", "630", "1.25k", "2.5k", "5k", "10k", "20k"];
             var bandW     = sliderW / 31;
             var font      = Font.sansSerif(7);
-            UserView(fxWin, Rect(100, 406, sliderW, 14))
+            UserView(fxWin, Rect(100, 810, sliderW, 14))
                 .drawFunc_({
                     Pen.font_(font);
                     Pen.color_(Color(0.45, 0.6, 0.85));
@@ -213,6 +235,45 @@
         fxKnobs[\eqGains] = msv;
     }.value;
 
+    // ── RESONATOR ─────────────────────────────────────────
+    // 4 parallel Ringz filters. Per-band: freq, decay (ring time), amp, phase polarity.
+    // Bands add on top of the dry signal; tanh prevents summing distortion.
+    // Inspired by Xaoc Oradea quadruple voltage-controlled resonator.
+    mkFXLabel.("── RESONATOR ─── 4-band Ringz ──────────", 15, 80);
+    mkOnBtn.(\resOn, 15, 96, { ~benjoResonator });
+
+    // Band column headers
+    ["A", "B", "C", "D"].do { |letter, i|
+        StaticText(fxWin, Rect(90 + (i * 95) + 28, 136, 24, 16))
+            .string_(letter)
+            .font_(Font.sansSerif(10, true))
+            .stringColor_(Color(0.72, 0.72, 1.0))
+            .align_(\center);
+    };
+
+    // Row labels
+    [["FREQ",  154], ["DECAY", 248], ["AMP", 342], ["PHASE", 436]].do { |pair|
+        StaticText(fxWin, Rect(15, pair[1], 72, 16))
+            .string_(pair[0])
+            .font_(Font.sansSerif(8))
+            .stringColor_(Color(0.4, 0.6, 0.9))
+            .align_(\right);
+    };
+
+    // Per-band knobs and polarity buttons
+    {
+        var bands   = ["A", "B", "C", "D"];
+        var freqDefs  = [200, 500, 1200, 3000];
+        var decayDefs = [1.0, 0.8, 0.5, 0.3];
+        bands.do { |band, i|
+            var col_x = 90 + (i * 95);
+            mkFXKnob.(("freq"  ++ band).asSymbol, 20,   10000, \exp, 0,     freqDefs[i],  col_x, 152, { ~benjoResonator });
+            mkFXKnob.(("decay" ++ band).asSymbol, 0.01, 8.0,   \exp, 0,     decayDefs[i], col_x, 246, { ~benjoResonator });
+            mkFXKnob.(("amp"   ++ band).asSymbol, 0,    1.0,   \lin, 0.001, 0.3,          col_x, 340, { ~benjoResonator });
+            mkPolBtn.(band, col_x, 436);
+        };
+    }.value;
+
     fxWin.onClose = { btn.value_(0); onClose.() };
 
     // ── Chain order row ─── built last so errors can't hide sections ──────
@@ -222,7 +283,7 @@
         .font_(Font.sansSerif(9))
         .stringColor_(Color(0.5, 0.5, 0.5));
 
-    3.do { |pos|
+    4.do { |pos|
         var b = Button(fxWin, Rect(68 + (pos * 64), 37, 55, 26))
             .font_(Font.sansSerif(7, true))
             .action_({ selectSlot.(pos) });
@@ -230,7 +291,7 @@
     };
     refreshChainBtns.();   // set initial labels and colours
 
-    [125, 189].do { |ax|
+    [125, 189, 253].do { |ax|
         StaticText(fxWin, Rect(ax, 41, 14, 18))
             .string_("→")
             .font_(Font.sansSerif(10))

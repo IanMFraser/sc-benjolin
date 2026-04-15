@@ -213,6 +213,32 @@ processed = MidEQ.ar(processed, midfreq, (1/6), Lag.kr(channelGain.at(i), 0.05))
 ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
 }).add;
 
+SynthDef(\resonator, {
+| bus=0, resOn=0,
+  freqA=200,  freqB=500,  freqC=1200, freqD=3000,
+  decayA=1.0, decayB=0.8, decayC=0.5, decayD=0.3,
+  ampA=0.3,   ampB=0.3,   ampC=0.3,   ampD=0.3,
+  polA=1,     polB=1,     polC=1,     polD=1 |
+
+    var sig  = In.ar(bus, 2);
+    var mono = (sig[0] + sig[1]) * 0.5;
+
+    // Four parallel Ringz (resonant bandpass) filters — inspired by Xaoc Oradea.
+    // Ringz has built-in gain compensation: peak level stays constant as decay grows.
+    // polA/B/C/D are ±1; phase cancellation between bands shapes the summed response.
+    var rA = Ringz.ar(mono, freqA.clip(20, 10000), decayA) * ampA.lag(0.05) * polA;
+    var rB = Ringz.ar(mono, freqB.clip(20, 10000), decayB) * ampB.lag(0.05) * polB;
+    var rC = Ringz.ar(mono, freqC.clip(20, 10000), decayC) * ampC.lag(0.05) * polC;
+    var rD = Ringz.ar(mono, freqD.clip(20, 10000), decayD) * ampD.lag(0.05) * polD;
+
+    // Soft-saturate the summed bands (mirrors Oradea's soft-saturation on sum out).
+    // LagUD: fast attack (0.05s snap on) / slow release (2s ring-out when bypassed).
+    var wet  = (rA + rB + rC + rD).tanh;
+    var gate = LagUD.kr(resOn, 0.05, 2.0);
+    ReplaceOut.ar(bus, sig + (wet ! 2 * gate));
+
+}).add;
+
 SynthDef(\benjoOut, {
 | in=0, out=0 |
 // Terminal stage: hard-clip and write to hardware.

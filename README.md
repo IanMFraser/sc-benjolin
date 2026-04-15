@@ -29,11 +29,11 @@ This SuperCollider implementation follows the Epoch Modular design closely, then
 
 The implementation is split across three files that must be kept in the same folder:
 
-| File                     | Purpose                                                                                                        |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `benjolin_gui.scd`       | **Entry point.** Open and evaluate this file. Loads the other two automatically.                               |
-| `benjolin_synthdefs.scd` | SynthDef definitions (`\benjolin` and all five FX synths). Loaded by the main file — do not evaluate directly. |
-| `benjolin_fx_gui.scd`    | FX window code. Loaded by the main file — do not evaluate directly.                                            |
+| File                     | Purpose                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `benjolin_gui.scd`       | **Entry point.** Open and evaluate this file. Loads the other two automatically.                             |
+| `benjolin_synthdefs.scd` | SynthDef definitions (`\benjolin` and all FX SynthDefs). Loaded by the main file — do not evaluate directly. |
+| `benjolin_fx_gui.scd`    | FX window code. Loaded by the main file — do not evaluate directly.                                          |
 
 Only `benjolin_gui.scd` needs to be opened. It locates the other files relative to its own path and loads them automatically at startup.
 
@@ -221,19 +221,42 @@ Controls the position of the output in the stereo field, with optional modulatio
 
 ## Effects
 
-A separate effects window is opened by clicking the **⚙ FX** button in the bottom-left of the main panel. The effects run as five separate synths that sit after the Benjolin in the signal chain, reading from and writing back to the internal audio bus before the final output stage. All five effects are always present in the signal graph — each is bypassed by leaving its **ON** toggle off, which costs negligible CPU.
+A separate effects window is opened by clicking the **⚙ FX** button in the bottom-left of the main panel. The effects run as four separate synths that sit after the Benjolin in the signal chain, reading from and writing back to the internal audio bus before the final output stage. All four effects are always present in the signal graph — each is bypassed by leaving its **ON** toggle off, which costs negligible CPU.
 
-The default processing order is: **Delay → Reverb → EQ**.
+The default processing order is: **Resonator → Delay → Reverb → EQ**.
 
 #### Reordering the Chain
 
-The **CHAIN** strip at the top of the FX window shows the current processing order as five labelled buttons. To swap two effects:
+The **CHAIN** strip at the top of the FX window shows the current processing order as four labelled buttons. To swap two effects:
 
 1. Click the first button — it turns green (armed)
 2. Click a second button — the two effects are swapped immediately in the server node graph
 3. Click an armed button a second time to disarm without swapping
 
 The chain order resets to default when the FX window is closed. It is not saved in presets.
+
+---
+
+### Resonator
+
+A four-band resonant filter bank inspired by the **Xaoc Oradea** quadruple voltage-controlled resonator. Each band is a `Ringz` filter — a resonant bandpass with built-in gain compensation, meaning peak level stays constant as decay time increases, preventing blowout at high resonance settings.
+
+Unlike the other effects which replace the dry signal with a processed version, the resonator bands are **additive**: each band's output is summed on top of the dry signal, emphasising resonant peaks rather than filtering through them. A tanh soft-saturation stage on the combined bands prevents distortion when multiple bands overlap.
+
+Because the Benjolin's rungler transients and pulse edges are already in the signal, the resonators are **self-excited** — sharp transients naturally ping the Ringz filters without a dedicated trigger input.
+
+| Control | Range  | Description                                                                                                                             |
+| ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **ON**  | toggle | Enables the resonator. When disabled, a 2-second slow fade-out lets any ringing tails decay naturally rather than cutting off abruptly. |
+
+#### Per-band controls (A / B / C / D)
+
+| Control   | Range        | Description                                                                                                                                                                                                                              |
+| --------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FREQ**  | 20–10,000 Hz | Center frequency of the band. Tune this to a harmonic of your oscillator to emphasise that partial.                                                                                                                                      |
+| **DECAY** | 0.01–8.0 s   | Ring decay time in seconds — how long the band continues resonating after being excited. Longer values produce pitched metallic ringing that outlasts the dry signal.                                                                    |
+| **AMP**   | 0–1          | Level of this band's contribution to the sum. Adjust to balance the four bands relative to each other. At 0 the band is silent.                                                                                                          |
+| **PHASE** | + / −        | Polarity of this band in the summed output. Flipping a band's phase creates cancellation or reinforcement with adjacent bands, shaping the combined frequency response — the same principle as Oradea's per-channel phase flip switches. |
 
 ---
 
@@ -362,4 +385,4 @@ All sources except CHAOS use values from the **previous audio block** (approxima
 
 ---
 
-_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph, and the 31-band graphic EQ using chained `MidEQ` filters— is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer._
+_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph and the 31-band graphic EQ using chained `MidEQ` filters — is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer. The resonator is inspired by the **Xaoc Devices Oradea** quadruple voltage-controlled resonator; the `Ringz` UGen's gain compensation and additive band architecture follow the same principles described in the Oradea operator's manual._
