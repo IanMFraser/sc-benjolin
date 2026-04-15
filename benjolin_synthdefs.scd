@@ -15,14 +15,17 @@
 // MOD B ← TRI A (1)
 // MOD F ← TRI B (2)
 //
-// Effects chain (six separate, reorderable synths + output stage):
-// \resonator — harmonic Ringz bank
-// \delay — ping-pong delay
-// \reverb — FreeVerb2 stereo reverb
-// \flanger — comb-filter flanger (BufCombC + LFTri, LocalBuf)
-// \eq — 31-band graphic EQ (MidEQ chain, Control.names array)
+// Effects chain (nine separate, reorderable synths + output stage):
+// \distortion  — soft saturate + hard clip  (Tommi Keränen autohazard)
+// \delay       — dual BufCombL comb delay, independent L/R times  (Tommi Keränen)
+// \reverb      — FreeVerb2 stereo reverb
+// \flanger     — BufCombC + LFTri comb flanger  (Tommi Keränen)
+// \detuner     — BufCombC + LFDNoise3 chorus/detuner  (Tommi Keränen)
+// \phasor      — BufAllpassC + SinOsc allpass phaser  (Tommi Keränen)
+// \ringmod     — ring modulator, selectable carrier waveform  (Tommi Keränen)
 // \pitchShifter — granular pitch shifter (PitchShift)
-// \benjoOut — reads from ~benjoBus, clips, writes to hardware
+// \eq          — 31-band graphic EQ (MidEQ chain, Tommi Keränen)
+// \benjoOut    — reads from ~benjoBus, clips, writes to hardware
 //
 // All FX synths use ReplaceOut.ar so they read from and write
 // back to the same bus. Synth.moveAfter / moveBefore can reorder them
@@ -164,36 +167,34 @@ pan=0.0, panMod=1.0, panRoute=0 |
 // \benjoOut is the terminal stage: reads ~benjoBus, hard-clips,
 // writes to hardware. It must always run last.
 
-SynthDef(\resonator, {
+SynthDef(\distortion, {
 | bus=0,
-resonOn=0, resonFreq=200.0, resonDecay=1.5, resonMix=0.25 |
+distOn=0, distDrive=1.0, distMix=1.0 |
 
-    var sig = In.ar(bus, 2);
-    var resWet = {
-        var mono = (sig[0] + sig[1]) * 0.5;
-        var amps = [1.0, 0.55, 0.38, 0.28, 0.20, 0.16, 0.13, 0.10];
-        var bank = 8.collect({ |i|
-            Ringz.ar(mono, resonFreq * (i + 1), resonDecay) * amps[i]
-        });
-        bank.sum * 0.15
-    }.value;
-    ReplaceOut.ar(bus, sig + (Pan2.ar(resWet) * resonMix * resonOn));
+    var sig  = In.ar(bus, 2);
+    var wet  = (sig * distDrive).distort.clip2(1.0);
+    var xmix = distMix * distOn * 2 - 1;
+    ReplaceOut.ar(bus, XFade2.ar(sig, wet, xmix));
 
 }).add;
 
 SynthDef(\delay, {
 | bus=0,
-delayOn=0, delayTime=250, delayFeedback=0.4, delayMix=0.3 |
+delayOn=0, delLeftTime=0.5, delRightTime=0.5,
+delLeftDecay=0.0, delRightDecay=0.0, delayMix=0.5 |
 
-    var sig = In.ar(bus, 2);
-    var delWet = {
-        var fb = LocalIn.ar(2) * delayFeedback * delayOn;
-        var dL = DelayL.ar(sig[0] + fb[1], 2.0, (delayTime * 0.001).max(0.001));
-        var dR = DelayL.ar(sig[1] + fb[0], 2.0, (delayTime * 1.33 * 0.001).max(0.001));
-        LocalOut.ar([dL, dR]);
-        [dL, dR]
-    }.value;
-    ReplaceOut.ar(bus, sig + (delWet * delayMix * delayOn));
+    var sig  = In.ar(bus, 2);
+    var lbuf = LocalBuf(SampleRate.ir * 5.0, 1);
+    var rbuf = LocalBuf(SampleRate.ir * 5.0, 1);
+    // LeakDC removes DC from comb resonance; tanh soft-limits so high decay
+    // times can't blow out the signal before the XFade crossfade.
+    var lWet = LeakDC.ar(BufCombL.ar(lbuf, sig[0], delLeftTime.clip(0.001, 5.0),  delLeftDecay)).tanh;
+    var rWet = LeakDC.ar(BufCombL.ar(rbuf, sig[1], delRightTime.clip(0.001, 5.0), delRightDecay)).tanh;
+    var xmix = delayMix * delayOn * 2 - 1;
+    ReplaceOut.ar(bus, [
+        XFade2.ar(sig[0], lWet, xmix),
+        XFade2.ar(sig[1], rWet, xmix)
+    ]);
 
 }).add;
 
@@ -202,10 +203,6 @@ SynthDef(\reverb, {
 reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3 |
 
     var sig = In.ar(bus, 2);
-    // Input hard-gated by reverbOn (snap), output fades over 3s via LagUD
-    // so the tail of the previous preset rings out naturally on preset switch.
-    // Fast attack (0.3s) means output starts near zero on wet-enable,
-    // preventing dry-signal bleed into the reverb output.
     var smoothReverbMix = LagUD.kr(reverbMix * reverbOn, 0.3, 3.0);
     var revWet = FreeVerb2.ar(sig[0] * reverbOn, sig[1] * reverbOn, 1.0, reverbRoom, reverbDamp);
     ReplaceOut.ar(bus, sig + (revWet * smoothReverbMix));
@@ -218,12 +215,8 @@ flangerOn=0, flangerRate=0.5, flangerRange=100.0,
 flangerFeedback=0.0, flangerMix=0.5 |
 
     var sig      = In.ar(bus, 2);
-    // LocalBuf allocates a 1-second buffer per channel, tied to this synth's lifetime.
-    // No external buffer management needed — matches the ReplaceOut / reorderable pattern.
     var lbuf     = LocalBuf.new(SampleRate.ir, 1);
     var rbuf     = LocalBuf.new(SampleRate.ir, 1);
-    // flangerRange (Hz): reciprocal = max delay sweep in seconds.
-    // LFTri sweeps 0 → 1/range; +0.0001 keeps delaytime strictly > 0.
     var delRange = flangerRange.max(1).reciprocal;
     var mod      = LFTri.kr(flangerRate, 0, delRange * 0.5, delRange * 0.5) + 0.0001;
     var lout     = LeakDC.ar(BufCombC.ar(lbuf, sig[0], mod, flangerFeedback));
@@ -235,9 +228,6 @@ flangerFeedback=0.0, flangerMix=0.5 |
 
 SynthDef(\eq, {
 | bus=0, eqOn=0 |
-// 31-band graphic EQ using Tommi Keränen's MidEQ chain approach (autohazard).
-// channelGain is an array control: gains in dB, one per ISO octave band.
-// eqOn smoothly cross-fades dry/wet so bypassing causes no click.
 var sig = In.ar(bus, 2);
 var channelGain = Control.names([\channelGain]).kr(Array.fill(31, 0));
 var freqs = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
@@ -264,9 +254,59 @@ pitchWinSize=0.2, pitchPchD=0.0, pitchTimeD=0.0 |
 
 }).add;
 
+SynthDef(\detuner, {
+| bus=0,
+detunerOn=0, detunerRate=50.0, detunerRange=500.0,
+detunerFeedback=0.0, detunerMix=0.5 |
+
+    var sig   = In.ar(bus, 2);
+    var range = detunerRange.abs.max(10).reciprocal.min(0.1);
+    var lbuf  = LocalBuf(SampleRate.ir, 1);
+    var rbuf  = LocalBuf(SampleRate.ir, 1);
+    var mod   = LFDNoise3.kr(detunerRate.max(0.01), range * 0.5, range * 0.5);
+    var lWet  = LeakDC.ar(BufCombC.ar(lbuf, sig[0], mod.clip(0.0001, 0.099), detunerFeedback));
+    var rWet  = LeakDC.ar(BufCombC.ar(rbuf, sig[1], mod.clip(0.0001, 0.099), detunerFeedback));
+    var xmix  = detunerMix * detunerOn * 2 - 1;
+    ReplaceOut.ar(bus, [XFade2.ar(sig[0], lWet, xmix), XFade2.ar(sig[1], rWet, xmix)]);
+
+}).add;
+
+SynthDef(\phasor, {
+| bus=0,
+phasorOn=0, phasorRate=0.5, phasorRange=100.0,
+phasorFeedback=0.0, phasorMix=0.5 |
+
+    var sig   = In.ar(bus, 2);
+    var range = phasorRange.max(1).reciprocal;
+    var lbuf  = LocalBuf(SampleRate.ir + 100, 1);
+    var rbuf  = LocalBuf(SampleRate.ir + 100, 1);
+    var mod   = (SinOsc.ar(phasorRate + 0.0001, 0, range * 0.5, range * 0.5) + 0.001).clip(0.001, 0.999);
+    var lWet  = LeakDC.ar(BufAllpassC.ar(lbuf, sig[0], mod, phasorFeedback));
+    var rWet  = LeakDC.ar(BufAllpassC.ar(rbuf, sig[1], mod, phasorFeedback));
+    var xmix  = phasorMix * phasorOn * 2 - 1;
+    ReplaceOut.ar(bus, [XFade2.ar(sig[0], lWet, xmix), XFade2.ar(sig[1], rWet, xmix)]);
+
+}).add;
+
+SynthDef(\ringmod, {
+| bus=0,
+ringOn=0, ringFreq=500.0, ringWave=0, ringPulseWidth=0.5, ringMix=0.5 |
+
+    var sig     = In.ar(bus, 2);
+    var carrier = Select.ar(ringWave, [
+        SinOsc.ar(ringFreq),
+        Pulse.ar(ringFreq, ringPulseWidth),
+        Saw.ar(ringFreq)
+    ]);
+    var wet  = sig * carrier;
+    var xmix = ringMix * ringOn * 2 - 1;
+    ReplaceOut.ar(bus, XFade2.ar(sig, wet, xmix));
+
+}).add;
+
 SynthDef(\benjoOut, {
 | in=0, out=0 |
 // Terminal stage: hard-clip and write to hardware.
-// Must always run after the four FX synths.
+// Must always run after the nine FX synths.
 Out.ar(out, In.ar(in, 2).clip2(0.95));
 }).add;
