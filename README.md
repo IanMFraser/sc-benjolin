@@ -223,7 +223,7 @@ Controls the position of the output in the stereo field, with optional modulatio
 
 A separate effects window is opened by clicking the **⚙ FX** button in the bottom-left of the main panel. The effects run as five separate synths that sit after the Benjolin in the signal chain, reading from and writing back to the internal audio bus before the final output stage. All five effects are always present in the signal graph — each is bypassed by leaving its **ON** toggle off, which costs negligible CPU.
 
-The default processing order is: **Resonator → Delay → Reverb → EQ → Pitch Shifter**.
+The default processing order is: **Delay → Reverb → EQ**.
 
 #### Reordering the Chain
 
@@ -260,48 +260,6 @@ A stereo algorithmic reverb based on FreeVerb.
 | **reverbRoom** | 0–1    | Room size. Larger values produce longer, more diffuse tails.                                |
 | **reverbDamp** | 0–1    | High-frequency damping. Higher values absorb treble in the tail, producing a warmer reverb. |
 | **reverbMix**  | 0–1    | Wet/dry balance. At 0 the signal is unaffected; at 1 the output is fully wet.               |
-
----
-
-### Resonator
-
-A bank of eight `Ringz` resonant filters tuned to the harmonic series of a fundamental frequency. When excited by the Benjolin's output, the bank rings at those partials, imposing a tonal centre on otherwise chaotic material. Unlike the Klank UGen, all parameters update in real time.
-
-| Control        | Range      | Description                                                                                                         |
-| -------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| **ON**         | toggle     | Enables the resonator.                                                                                              |
-| **resonFreq**  | 20–2000 Hz | Fundamental frequency of the resonator bank. Partials 1–8 are tuned to integer multiples of this value.             |
-| **resonDecay** | 0.1–8.0 s  | Ring time for each partial. Short values give a percussive click; longer values produce sustained, bell-like tones. |
-| **resonMix**   | 0–1        | Wet level of the resonator added to the signal.                                                                     |
-
----
-
-### Flanger
-
-A stereo comb-filter flanger. An LFTri oscillator sweeps the delay time of a `BufCombC` filter, creating the characteristic through-zero flanging and comb-filter phasing. Left and right channels share the same modulator, producing a coherent stereo image rather than independent random wobble. The design is adapted directly from Tommi Keränen's Autohazard flanger
-
-| Control             | Range        | Description                                                                                                                                                                                                                              |
-| ------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ON**              | toggle       | Enables the flanger. When off, the dry signal passes through unchanged.                                                                                                                                                                  |
-| **flangerRate**     | 0.05 – 20 Hz | Speed of the LFTri sweep. Slow rates (0.1–1 Hz) produce classic jet-plane flanging; faster rates enter chorus and vibrato territory.                                                                                                     |
-| **flangerRange**    | 10 – 500 Hz  | Sets the frequency range of the comb-filter sweep. This is specified as a frequency in Hz — the reciprocal gives the maximum delay time in seconds. Higher values produce shorter delays and move the comb teeth higher in the spectrum. |
-| **flangerFeedback** | 0 – 6.0 s    | The 60 dB decay time of the internal comb filter. At `0`, each sweep is a single pass with no ringing. Higher values produce increasingly resonant, singing comb resonances. Values above 3–4 s can become quite intense.                |
-| **flangerMix**      | 0 – 1        | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the flanged signal is heard.                                                                                                                                             |
-
----
-
-### Pitch Shifter
-
-A granular pitch shifter based on the `PitchShift` UGen. The input signal is divided into short overlapping grains, each transposed by the shift ratio, then reassembled. This produces smooth transposition at the cost of a small latency proportional to the window size.
-
-| Control          | Range        | Description                                                                                                                                                                                                                                           |
-| ---------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ON**           | toggle       | Enables pitch shifting. When off, the dry signal passes through unchanged.                                                                                                                                                                            |
-| **pitchShift**   | 0.25 – 4.0   | Transposition ratio. `1.0` = no shift. `0.5` = one octave down. `2.0` = one octave up. `0.25` = two octaves down. `4.0` = two octaves up.                                                                                                             |
-| **pitchMix**     | 0 – 1        | Wet/dry blend. At `0` only the dry signal is heard; at `1` only the shifted signal is heard.                                                                                                                                                          |
-| **pitchWinSize** | 0.02 – 2.0 s | Grain window size in seconds. Smaller values give more responsive but grainier transposition; larger values are smoother but add more latency and smear.                                                                                              |
-| **pitchPchD**    | 0 – 1        | Pitch dispersion. Randomises the transposition ratio independently per grain, spreading the output across a band of pitches. At low values adds a subtle chorus-like spread; higher values produce a dense, cloud-like smear around the target pitch. |
-| **pitchTimeD**   | 0 – 1        | Time dispersion. Randomises the playback position within each grain, loosening the temporal coherence. Adds a diffuse, washed-out quality — higher values approach a reverb-like blur.                                                                |
 
 ---
 
@@ -404,4 +362,4 @@ All sources except CHAOS use values from the **previous audio block** (approxima
 
 ---
 
-_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph, the 31-band graphic EQ using chained `MidEQ` filters, flanger, and the granular pitch shifter — is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer._
+_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph, and the 31-band graphic EQ using chained `MidEQ` filters— is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer._

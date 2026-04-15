@@ -164,23 +164,6 @@ pan=0.0, panMod=1.0, panRoute=0 |
 // \benjoOut is the terminal stage: reads ~benjoBus, hard-clips,
 // writes to hardware. It must always run last.
 
-SynthDef(\resonator, {
-| bus=0,
-resonOn=0, resonFreq=200.0, resonDecay=1.5, resonMix=0.25 |
-
-    var sig = In.ar(bus, 2);
-    var resWet = {
-        var mono = (sig[0] + sig[1]) * 0.5;
-        var amps = [1.0, 0.55, 0.38, 0.28, 0.20, 0.16, 0.13, 0.10];
-        var bank = 8.collect({ |i|
-            Ringz.ar(mono, resonFreq * (i + 1), resonDecay) * amps[i]
-        });
-        bank.sum * 0.15
-    }.value;
-    ReplaceOut.ar(bus, sig + (Pan2.ar(resWet) * resonMix * resonOn));
-
-}).add;
-
 SynthDef(\delay, {
 | bus=0,
 delayOn=0, delayTime=250, delayFeedback=0.4, delayMix=0.3 |
@@ -212,27 +195,6 @@ reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3 |
 
 }).add;
 
-SynthDef(\flanger, {
-| bus=0,
-flangerOn=0, flangerRate=0.5, flangerRange=100.0,
-flangerFeedback=0.0, flangerMix=0.5 |
-
-    var sig      = In.ar(bus, 2);
-    // LocalBuf allocates a 1-second buffer per channel, tied to this synth's lifetime.
-    // No external buffer management needed — matches the ReplaceOut / reorderable pattern.
-    var lbuf     = LocalBuf.new(SampleRate.ir, 1);
-    var rbuf     = LocalBuf.new(SampleRate.ir, 1);
-    // flangerRange (Hz): reciprocal = max delay sweep in seconds.
-    // LFTri sweeps 0 → 1/range; +0.0001 keeps delaytime strictly > 0.
-    var delRange = flangerRange.max(1).reciprocal;
-    var mod      = LFTri.kr(flangerRate, 0, delRange * 0.5, delRange * 0.5) + 0.0001;
-    var lout     = LeakDC.ar(BufCombC.ar(lbuf, sig[0], mod, flangerFeedback));
-    var rout     = LeakDC.ar(BufCombC.ar(rbuf, sig[1], mod, flangerFeedback));
-    var wet      = [lout, rout];
-    ReplaceOut.ar(bus, sig + ((wet - sig) * flangerMix * flangerOn));
-
-}).add;
-
 SynthDef(\eq, {
 | bus=0, eqOn=0 |
 // 31-band graphic EQ using Tommi Keränen's MidEQ chain approach (autohazard).
@@ -249,19 +211,6 @@ freqs.do { |midfreq, i|
 processed = MidEQ.ar(processed, midfreq, (1/6), Lag.kr(channelGain.at(i), 0.05));
 };
 ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
-}).add;
-
-SynthDef(\pitchShifter, {
-| bus=0,
-pitchOn=0, pitchShift=1.0, pitchMix=0.5,
-pitchWinSize=0.2, pitchPchD=0.0, pitchTimeD=0.0 |
-
-    var sig = In.ar(bus, 2);
-    // PitchShift needs winSize >= 0.02 to avoid clicks; shift must be > 0
-    var wet = PitchShift.ar(sig, pitchWinSize.max(0.02), pitchShift.max(0.0001), pitchPchD, pitchTimeD);
-    // Crossfade: pitchOn=0 → dry pass-through; pitchOn=1 → blend dry/wet via pitchMix
-    ReplaceOut.ar(bus, sig + ((wet - sig) * pitchMix * pitchOn));
-
 }).add;
 
 SynthDef(\benjoOut, {
