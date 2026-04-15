@@ -179,7 +179,7 @@
     // flangerFeedback = BufCombC decaytime in seconds: longer = more resonant ringing.
     mkFXLabel.("── FLANGER ─── comb-filter chorus ───────", 15, 552);
     mkOnBtn.(\flangerOn, 15, 580, { ~benjoFlanger });
-    mkFXKnob.(\flangerRate,     0.05, 20,   \exp, 0,     0.5,  100, 562, { ~benjoFlanger });
+    mkFXKnob.(\flangerRate,     0, 20,   \exp, 0,     0.1,  100, 562, { ~benjoFlanger });
     mkFXKnob.(\flangerRange,    10,   500,  \exp, 0,     100,  195, 562, { ~benjoFlanger });
     mkFXKnob.(\flangerFeedback, 0,    6.0,  \lin, 0.001, 0.0,  290, 562, { ~benjoFlanger });
     mkFXKnob.(\flangerMix,      0,    1.0,  \lin, 0.001, 0.5,  385, 562, { ~benjoFlanger });

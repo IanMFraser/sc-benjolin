@@ -278,7 +278,7 @@ A bank of eight `Ringz` resonant filters tuned to the harmonic series of a funda
 
 ### Flanger
 
-A stereo comb-filter flanger. An LFTri oscillator sweeps the delay time of a `BufCombC` filter, creating the characteristic through-zero flanging and comb-filter phasing. Left and right channels share the same modulator, producing a coherent stereo image rather than independent random wobble.
+A stereo comb-filter flanger. An LFTri oscillator sweeps the delay time of a `BufCombC` filter, creating the characteristic through-zero flanging and comb-filter phasing. Left and right channels share the same modulator, producing a coherent stereo image rather than independent random wobble. The design is adapted directly from Tommi Keränen's Autohazard flanger
 
 | Control             | Range        | Description                                                                                                                                                                                                                              |
 | ------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -404,4 +404,4 @@ All sources except CHAOS use values from the **previous audio block** (approxima
 
 ---
 
-\_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular.
+\_This implementation was developed in SuperCollider. The Benjolin circuit was designed by Rob Hordijk. The Eurorack adaptation is by Epoch Modular. The effects chain architecture — including the `ReplaceOut`-based reorderable synth graph, the 31-band graphic EQ using chained `MidEQ` filters, flanger, and the granular pitch shifter — is based on techniques from **Tommi Keränen's Autohazard** SuperCollider synthesizer.\_
