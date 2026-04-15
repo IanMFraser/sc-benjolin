@@ -3,17 +3,17 @@
 // Evaluate entire block: Cmd+Shift+Return
 //
 // Loads:
-//   benjolin_synthdefs.scd  — \benjolin + six FX SynthDefs
-//   benjolin_fx_gui.scd     — FX window factory function
+// benjolin_synthdefs.scd — \benjolin + six FX SynthDefs
+// benjolin_fx_gui.scd — FX window factory function
 //
 // Effects chain (six synths, addToTail after \benjolin):
-//   ~benjoRes      \benjoResonator  — harmonic Ringz bank
-//   ~benjoDelay    \benjoDelay      — ping-pong delay
-//   ~benjoReverb   \benjoReverb     — FreeVerb2 reverb
-//   ~benjoFlanger  \benjoFlanger    — comb-filter flanger
-//   ~benjoEQ       \benjoEQ         — 31-band graphic EQ
-//   ~benjoPitch    \benjoPitch      — granular pitch shifter
-//   ~benjoOut      \benjoOut        — output / clip stage (always last)
+// ~benjoRes \benjoResonator — harmonic Ringz bank
+// ~benjoDelay \benjoDelay — ping-pong delay
+// ~benjoReverb \benjoReverb — FreeVerb2 reverb
+// ~benjoFlanger \benjoFlanger — comb-filter flanger
+// ~benjoEQ \benjoEQ — 31-band graphic EQ
+// ~benjoPitch \benjoPitch — granular pitch shifter
+// ~benjoOut \benjoOut — output / clip stage (always last)
 //
 // All three FX synths use ReplaceOut on ~benjoBus so they can be
 // reordered live via Synth.moveAfter / moveBefore (drag strips in
@@ -21,8 +21,8 @@
 // ============================================================
 (
 s.waitForBoot {
-    var makeFxWindow;
-    var dir = thisProcess.nowExecutingPath.dirname;
+var makeFxWindow;
+var dir = thisProcess.nowExecutingPath.dirname;
 
     // Load SynthDefs (adds \benjolin, \benjoResonator, \benjoDelay, \benjoReverb, \benjoFlanger, \benjoEQ, \benjoPitch, \benjoOut)
     (dir +/+ "benjolin_synthdefs.scd").load;
@@ -380,7 +380,7 @@ s.waitForBoot {
                 fs[\eqGains] !? { |gains|
                     var dbs = gains.collect { |v| v * 48 - 24 };
                     ~benjoEQ !? { ~benjoEQ.set(\channelGain, dbs) };
-                    fxKnobs[\eqGains] !? { |msv| msv.value_(gains) };
+                    fxKnobs !? { fxKnobs[\eqGains] !? { |msv| msv.value_(gains) } };
                 };
                 [\pitchOn, \pitchShift, \pitchMix, \pitchWinSize, \pitchPchD, \pitchTimeD].do { |p|
                     fs[p] !? { ~benjoPitch !? { ~benjoPitch.set(p, fs[p]) } };
@@ -514,5 +514,6 @@ s.waitForBoot {
         };
 
     }.defer;
+
 };
 )
