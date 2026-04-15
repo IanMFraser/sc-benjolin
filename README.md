@@ -400,7 +400,7 @@ All sources except CHAOS use values from the **previous audio block** (approxima
 - The shift register is clocked by **rising edges of OSC B's pulse output**, matching the Epoch Modular hardware (not the XOR output as in some earlier Benjolin descriptions).
 - Resonance uses an **anti-logarithmic mapping** (`rq = 0.01 ** res`) matching the Epoch Modular's resonance feel — the knob is subtle at low values and dramatic near the top.
 - The chaos UGens (HenonC, GbmanN, StandardN, Gendy1) run at **audio rate** and are clipped to ±1. All four attractors run simultaneously inside the SynthDef; Select.ar picks the active one with negligible CPU overhead. When chaos is used as a **pan source**, its output is smoothed with a 50 ms lag to prevent audible noise from the discontinuous jumps produced by GbmanN and StandardN.
-- The `~benjoBus` stereo bus is available for external processing — `benjolin_waveset.scd` uses it to capture and process the output through waveset synthesis.
+- The `~benjoBus` stereo bus is available for external processing.
 
 ---
 
