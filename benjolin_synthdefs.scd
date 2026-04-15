@@ -3,26 +3,26 @@
 // Loaded by benjolin_gui.scd via .load — do not evaluate directly.
 //
 // LocalIn/Out bus layout (8 channels):
-//   [0] runglerCV   [1] loopBit   [2] triA    [3] triB
-//   [4] pulseA      [5] pulseB    [6] xorOut  [7] pwm
+// [0] runglerCV [1] loopBit [2] triA [3] triB
+// [4] pulseA [5] pulseB [6] xorOut [7] pwm
 //
 // Route indices (modARoute / modBRoute / modFRoute):
-//   0=NONE  1=TRI A  2=TRI B  3=PULSE A  4=PULSE B
-//   5=XOR   6=RUNGLER  7=PWM
+// 0=NONE 1=TRI A 2=TRI B 3=PULSE A 4=PULSE B
+// 5=XOR 6=RUNGLER 7=PWM
 //
 // Defaults mirror the hardware normalized connections:
-//   MOD A ← TRI B (2)
-//   MOD B ← TRI A (1)
-//   MOD F ← TRI B (2)
+// MOD A ← TRI B (2)
+// MOD B ← TRI A (1)
+// MOD F ← TRI B (2)
 //
 // Effects chain (six separate, reorderable synths + output stage):
-//   \benjoResonator  — harmonic Ringz bank
-//   \benjoDelay      — ping-pong delay
-//   \benjoReverb     — FreeVerb2 stereo reverb
-//   \benjoFlanger    — comb-filter flanger (BufCombC + LFTri, LocalBuf)
-//   \benjoEQ         — 31-band graphic EQ (MidEQ chain, Control.names array)
-//   \benjoPitch      — granular pitch shifter (PitchShift)
-//   \benjoOut        — reads from ~benjoBus, clips, writes to hardware
+// \resonator — harmonic Ringz bank
+// \delay — ping-pong delay
+// \reverb — FreeVerb2 stereo reverb
+// \flanger — comb-filter flanger (BufCombC + LFTri, LocalBuf)
+// \eq — 31-band graphic EQ (MidEQ chain, Control.names array)
+// \pitchShifter — granular pitch shifter (PitchShift)
+// \benjoOut — reads from ~benjoBus, clips, writes to hardware
 //
 // All FX synths use ReplaceOut.ar so they read from and write
 // back to the same bus. Synth.moveAfter / moveBefore can reorder them
@@ -30,18 +30,18 @@
 // ============================================================
 
 SynthDef(\benjolin, {
-    | out=0, gate=1,
-      oscA=200, oscB=271.5,
-      runA=0.3, runB=0.3, runF=0.4,
-      modA=0.2, modB=0.2, modF=0.2,
-      modARoute=2, modBRoute=1, modFRoute=2,
-      freq=800, res=0.5,
-      loop=0.0, loopSwitch=0,
-      filterMode=0, amp=0.86,
-      chaosSource=0, chaosRate=5.0,
-      chaosOscA=1.0, chaosOscB=1.0,
-      chaosRunA=0.0, chaosRunB=0.0, chaosRunF=0.0,
-      pan=0.0, panMod=1.0, panRoute=0 |
+| out=0, gate=1,
+oscA=200, oscB=271.5,
+runA=0.3, runB=0.3, runF=0.4,
+modA=0.2, modB=0.2, modF=0.2,
+modARoute=2, modBRoute=1, modFRoute=2,
+freq=800, res=0.5,
+loop=0.0, loopSwitch=0,
+filterMode=0, amp=0.86,
+chaosSource=0, chaosRate=5.0,
+chaosOscA=1.0, chaosOscB=1.0,
+chaosRunA=0.0, chaosRunB=0.0, chaosRunF=0.0,
+pan=0.0, panMod=1.0, panRoute=0 |
 
     var fb, runglerCV, loopBit, prevTriA, prevTriB;
     var prevPulseA, prevPulseB, prevXor, prevPwm;
@@ -152,8 +152,8 @@ SynthDef(\benjolin, {
     panPos = (pan + Select.ar(panRoute, sources ++ [Lag.ar(chaosRaw, 0.05)]) * panMod).clip(-1, 1);
 
     Out.ar(out, Pan2.ar(mono, panPos));
-}).add;
 
+}).add;
 
 // ── Effects SynthDefs ─────────────────────────────────────────
 // Each reads from ~benjoBus (stereo) via In.ar, processes, and
@@ -164,9 +164,9 @@ SynthDef(\benjolin, {
 // \benjoOut is the terminal stage: reads ~benjoBus, hard-clips,
 // writes to hardware. It must always run last.
 
-SynthDef(\benjoResonator, {
-    | bus=0,
-      resonOn=0, resonFreq=200.0, resonDecay=1.5, resonMix=0.25 |
+SynthDef(\resonator, {
+| bus=0,
+resonOn=0, resonFreq=200.0, resonDecay=1.5, resonMix=0.25 |
 
     var sig = In.ar(bus, 2);
     var resWet = {
@@ -178,12 +178,12 @@ SynthDef(\benjoResonator, {
         bank.sum * 0.15
     }.value;
     ReplaceOut.ar(bus, sig + (Pan2.ar(resWet) * resonMix * resonOn));
+
 }).add;
 
-
-SynthDef(\benjoDelay, {
-    | bus=0,
-      delayOn=0, delayTime=250, delayFeedback=0.4, delayMix=0.3 |
+SynthDef(\delay, {
+| bus=0,
+delayOn=0, delayTime=250, delayFeedback=0.4, delayMix=0.3 |
 
     var sig = In.ar(bus, 2);
     var delWet = {
@@ -194,12 +194,12 @@ SynthDef(\benjoDelay, {
         [dL, dR]
     }.value;
     ReplaceOut.ar(bus, sig + (delWet * delayMix * delayOn));
+
 }).add;
 
-
-SynthDef(\benjoReverb, {
-    | bus=0,
-      reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3 |
+SynthDef(\reverb, {
+| bus=0,
+reverbOn=0, reverbRoom=0.6, reverbDamp=0.5, reverbMix=0.3 |
 
     var sig = In.ar(bus, 2);
     // Input hard-gated by reverbOn (snap), output fades over 3s via LagUD
@@ -209,13 +209,13 @@ SynthDef(\benjoReverb, {
     var smoothReverbMix = LagUD.kr(reverbMix * reverbOn, 0.3, 3.0);
     var revWet = FreeVerb2.ar(sig[0] * reverbOn, sig[1] * reverbOn, 1.0, reverbRoom, reverbDamp);
     ReplaceOut.ar(bus, sig + (revWet * smoothReverbMix));
+
 }).add;
 
-
-SynthDef(\benjoFlanger, {
-    | bus=0,
-      flangerOn=0, flangerRate=0.5, flangerRange=100.0,
-      flangerFeedback=0.0, flangerMix=0.5 |
+SynthDef(\flanger, {
+| bus=0,
+flangerOn=0, flangerRate=0.5, flangerRange=100.0,
+flangerFeedback=0.0, flangerMix=0.5 |
 
     var sig      = In.ar(bus, 2);
     // LocalBuf allocates a 1-second buffer per channel, tied to this synth's lifetime.
@@ -230,44 +230,43 @@ SynthDef(\benjoFlanger, {
     var rout     = LeakDC.ar(BufCombC.ar(rbuf, sig[1], mod, flangerFeedback));
     var wet      = [lout, rout];
     ReplaceOut.ar(bus, sig + ((wet - sig) * flangerMix * flangerOn));
+
 }).add;
 
-
-SynthDef(\benjoEQ, {
-    | bus=0, eqOn=0 |
-    // 31-band graphic EQ using Tommi Keränen's MidEQ chain approach (autohazard).
-    // channelGain is an array control: gains in dB, one per ISO octave band.
-    // eqOn smoothly cross-fades dry/wet so bypassing causes no click.
-    var sig         = In.ar(bus, 2);
-    var channelGain = Control.names([\channelGain]).kr(Array.fill(31, 0));
-    var freqs       = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
-                       200, 250, 315, 400, 500, 630, 800, 1000, 1250,
-                       1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000,
-                       10000, 12500, 16000, 20000];
-    var processed = sig;
-    freqs.do { |midfreq, i|
-        processed = MidEQ.ar(processed, midfreq, (1/6), Lag.kr(channelGain.at(i), 0.05));
-    };
-    ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
+SynthDef(\eq, {
+| bus=0, eqOn=0 |
+// 31-band graphic EQ using Tommi Keränen's MidEQ chain approach (autohazard).
+// channelGain is an array control: gains in dB, one per ISO octave band.
+// eqOn smoothly cross-fades dry/wet so bypassing causes no click.
+var sig = In.ar(bus, 2);
+var channelGain = Control.names([\channelGain]).kr(Array.fill(31, 0));
+var freqs = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
+200, 250, 315, 400, 500, 630, 800, 1000, 1250,
+1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000,
+10000, 12500, 16000, 20000];
+var processed = sig;
+freqs.do { |midfreq, i|
+processed = MidEQ.ar(processed, midfreq, (1/6), Lag.kr(channelGain.at(i), 0.05));
+};
+ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
 }).add;
 
-
-SynthDef(\benjoPitch, {
-    | bus=0,
-      pitchOn=0, pitchShift=1.0, pitchMix=0.5,
-      pitchWinSize=0.2, pitchPchD=0.0, pitchTimeD=0.0 |
+SynthDef(\pitchShifter, {
+| bus=0,
+pitchOn=0, pitchShift=1.0, pitchMix=0.5,
+pitchWinSize=0.2, pitchPchD=0.0, pitchTimeD=0.0 |
 
     var sig = In.ar(bus, 2);
     // PitchShift needs winSize >= 0.02 to avoid clicks; shift must be > 0
     var wet = PitchShift.ar(sig, pitchWinSize.max(0.02), pitchShift.max(0.0001), pitchPchD, pitchTimeD);
     // Crossfade: pitchOn=0 → dry pass-through; pitchOn=1 → blend dry/wet via pitchMix
     ReplaceOut.ar(bus, sig + ((wet - sig) * pitchMix * pitchOn));
+
 }).add;
 
-
 SynthDef(\benjoOut, {
-    | in=0, out=0 |
-    // Terminal stage: hard-clip and write to hardware.
-    // Must always run after the four FX synths.
-    Out.ar(out, In.ar(in, 2).clip2(0.95));
+| in=0, out=0 |
+// Terminal stage: hard-clip and write to hardware.
+// Must always run after the four FX synths.
+Out.ar(out, In.ar(in, 2).clip2(0.95));
 }).add;

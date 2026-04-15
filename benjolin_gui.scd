@@ -39,13 +39,13 @@ var dir = thisProcess.nowExecutingPath.dirname;
     ~benjoPitch    !? { ~benjoPitch.free    };
     ~benjoOut      !? { ~benjoOut.free      };
     ~benjoBus      = Bus.audio(s, 2);
-    ~benjoRes      = Synth(\benjoResonator, [\bus, ~benjoBus.index],           addAction: \addToTail);
-    ~benjoDelay    = Synth(\benjoDelay,     [\bus, ~benjoBus.index],           addAction: \addToTail);
-    ~benjoReverb   = Synth(\benjoReverb,    [\bus, ~benjoBus.index],           addAction: \addToTail);
-    ~benjoFlanger  = Synth(\benjoFlanger,   [\bus, ~benjoBus.index],           addAction: \addToTail);
-    ~benjoEQ       = Synth(\benjoEQ,        [\bus, ~benjoBus.index],           addAction: \addToTail);
-    ~benjoPitch    = Synth(\benjoPitch,     [\bus, ~benjoBus.index],           addAction: \addToTail);
-    ~benjoOut      = Synth(\benjoOut,       [\in,  ~benjoBus.index, \out, 0],  addAction: \addToTail);
+    ~benjoRes      = Synth(\resonator,    [\bus, ~benjoBus.index], addAction: \addToTail);
+    ~benjoDelay    = Synth(\delay,        [\bus, ~benjoBus.index], addAction: \addToTail);
+    ~benjoReverb   = Synth(\reverb,       [\bus, ~benjoBus.index], addAction: \addToTail);
+    ~benjoFlanger  = Synth(\flanger,      [\bus, ~benjoBus.index], addAction: \addToTail);
+    ~benjoEQ       = Synth(\eq,           [\bus, ~benjoBus.index], addAction: \addToTail);
+    ~benjoPitch    = Synth(\pitchShifter, [\bus, ~benjoBus.index], addAction: \addToTail);
+    ~benjoOut      = Synth(\benjoOut,     [\in,  ~benjoBus.index, \out, 0], addAction: \addToTail);
 
     // Load FX window factory — returns { |btn, screen, winW, winH, presetWinW, onClose, fxState, fxKnobs| }
     makeFxWindow = (dir +/+ "benjolin_fx_gui.scd").load;
@@ -72,8 +72,9 @@ var dir = thisProcess.nowExecutingPath.dirname;
         var screen  = Window.screenBounds;
         var winW    = 720, winH = 760;
         var presetWinW = 290, presetWinH = 420;
-        var presets, presetPath, captureState, recallState, refreshSlot, refreshAll;
+        var presets, presetPath, namePath, captureState, recallState, refreshSlot, refreshAll;
         var activeSlot = nil;
+        var currentFileLbl;
         var sourceNames = ["NONE", "TRI A", "TRI B",
                            "PULSE A", "PULSE B", "XOR", "RUNGLER", "PWM"];
 
@@ -323,6 +324,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
 
         // ── Preset Matrix ────────────────────────────────────────
         presetPath = Platform.userAppSupportDir ++ "/benjolin_presets.archive";
+        namePath   = Platform.userAppSupportDir ++ "/benjolin_presets_name.txt";
         presets    = if(File.exists(presetPath)) {
             Object.readArchive(presetPath) ?? { Dictionary.new }
         } { Dictionary.new };
@@ -415,10 +417,20 @@ var dir = thisProcess.nowExecutingPath.dirname;
             )
         ).background_(Color(0.07, 0.07, 0.09)).front;
 
-        StaticText(presetWin, Rect(15, 10, 180, 18))
+        StaticText(presetWin, Rect(15, 10, 150, 18))
             .string_("PRESET MATRIX")
             .font_(Font.sansSerif(12, true))
             .stringColor_(Color.white);
+
+        currentFileLbl = StaticText(presetWin, Rect(162, 12, 113, 16))
+            .font_(Font.sansSerif(10, true))
+            .stringColor_(Color(0.65, 0.65, 0.7))
+            .string_(if(File.exists(namePath)) {
+                var nf = File(namePath, "r");
+                var name = nf.readAllString.stripWhiteSpace;
+                nf.close;
+                name
+            } { "default" });
 
         // CLEAR ALL — two-click confirm: first click arms, second click executes
         Button(presetWin, Rect(15, 36, 120, 24))
@@ -465,10 +477,16 @@ var dir = thisProcess.nowExecutingPath.dirname;
                 Dialog.openPanel({ |path|
                     var loaded = Object.readArchive(path);
                     loaded !? {
+                        var fname = PathName(path).fileName;
+                        var nameFile;
                         presets = loaded;
                         presets.writeArchive(presetPath);
+                        nameFile = File(namePath, "w");
+                        nameFile.write(fname);
+                        nameFile.close;
                         activeSlot = nil;
                         refreshAll.();
+                        currentFileLbl.string_(fname);
                     };
                 });
             });
@@ -508,7 +526,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
             ~benjoEQ.free;       ~benjoEQ       = nil;
             ~benjoPitch.free;    ~benjoPitch    = nil;
             ~benjoOut.free;      ~benjoOut      = nil;
-            ~benjoBus.free;     ~benjoBus    = nil;
+            ~benjoBus.free;      ~benjoBus      = nil;
             presetWin.close;
             fxWin !? { fxWin.close };
         };
