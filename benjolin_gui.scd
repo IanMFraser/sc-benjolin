@@ -50,6 +50,9 @@ var dir = thisProcess.nowExecutingPath.dirname;
         var win, synth, loopSwBtn, filterBtns, chaosBtns, startBtn;
         var presetWin, saveModeBtn, slotBtns;
         var fxWin, fxKnobs;
+        var performWin;
+        var stateA = nil, stateB = nil;
+        var openPerformWin;
         var fxState = (
             delayOn: 0, delayTime: 250, delayFeedback: 0.4, delayMix: 0.3,
             reverbOn: 0, reverbRoom: 0.6, reverbDamp: 0.5, reverbMix: 0.3,
@@ -263,6 +266,269 @@ var dir = thisProcess.nowExecutingPath.dirname;
         mkKnob.(\chaosRunB, 0, 1, \lin, 0.001, 0.0, 305, 538);
         mkKnob.(\chaosRunF, 0, 1, \lin, 0.001, 0.0, 400, 538);
 
+        // ── Performance window ───────────────────────────────────────
+        openPerformWin = {
+            var pw, pwW = 390, pwH = 570;
+            var aStatusLbl, bStatusLbl, morphSlider;
+            var xyView, xyX = 0.5, xyY = 0.5;
+            var specOscA = ControlSpec(0.1, 10000, \exp);
+            var specOscB = ControlSpec(0.1, 10000, \exp);
+            var gesture = [];
+            var recActive = false;
+            var lastRecTime = 0;
+            var playRoutine = nil;
+            var gestureStatusLbl, recBtn, loopBtn;
+
+            var lerpState = { |a, b, t|
+                var result = ();
+                a.keysValuesDo { |k, va|
+                    var vb = b[k] ?? { va };
+                    if(k == \fx) {
+                        var fxResult = ();
+                        va.keysValuesDo { |fk, fva|
+                            var fvb = vb[fk] ?? { fva };
+                            fxResult[fk] = case
+                                { fva.isKindOf(Array) } {
+                                    fva.collect { |v, i| v + (((fvb[i] ?? { v }) - v) * t) }
+                                }
+                                { fva.isKindOf(Float) } { fva + ((fvb - fva) * t) }
+                                { t < 0.5 }             { fva }
+                                { fvb };
+                        };
+                        result[k] = fxResult;
+                    } {
+                        result[k] = case
+                            { va.isKindOf(Float) } { va + ((vb - va) * t) }
+                            { t < 0.5 }            { va }
+                            { vb };
+                    };
+                };
+                result
+            };
+
+            var updateXY = { |x01, y01|
+                var valA = specOscA.map(x01);
+                var valB = specOscB.map(y01);
+                xyX = x01; xyY = y01;
+                knobs[\oscA] !? { |k| k.value_(valA) };
+                knobs[\oscB] !? { |k| k.value_(valB) };
+                synth !? { synth.set(\oscA, valA, \oscB, valB) };
+                if(recActive) {
+                    var now = Process.elapsedTime;
+                    var dt  = if(gesture.isEmpty) { 0 } { now - lastRecTime };
+                    gesture      = gesture.add([dt, x01, y01]);
+                    lastRecTime  = now;
+                    gestureStatusLbl !? { gestureStatusLbl.string_("● " ++ gesture.size.asString ++ " pts") };
+                };
+                xyView !? { xyView.refresh };
+            };
+
+            pw = Window("Benjolin Perform",
+                Rect((screen.width - pwW) / 2, (screen.height - pwH) / 2, pwW, pwH)
+            ).background_(Color(0.07, 0.07, 0.09)).front;
+
+            StaticText(pw, Rect(15, 10, 200, 22))
+                .string_("PERFORMANCE")
+                .font_(Font.sansSerif(13, true))
+                .stringColor_(Color.white);
+
+            // ── A/B Morph ────────────────────────────────────────────
+            StaticText(pw, Rect(15, 42, 360, 18))
+                .string_("── A / B MORPH ──────────────────────────────")
+                .font_(Font.sansSerif(9))
+                .stringColor_(Color(0.4, 0.6, 0.9));
+
+            aStatusLbl = StaticText(pw, Rect(112, 68, 100, 16))
+                .string_("A: —")
+                .font_(Font.monospace(9))
+                .stringColor_(Color(0.5, 0.8, 1.0));
+
+            bStatusLbl = StaticText(pw, Rect(264, 68, 100, 16))
+                .string_("B: —")
+                .font_(Font.monospace(9))
+                .stringColor_(Color(1.0, 0.7, 0.3));
+
+            Button(pw, Rect(15, 62, 88, 28))
+                .states_([["SNAP  A", Color(0.5, 0.8, 1.0), Color(0.08, 0.16, 0.24)]])
+                .font_(Font.sansSerif(10, true))
+                .action_({
+                    stateA = captureState.();
+                    aStatusLbl.string_("A: ●");
+                    morphSlider !? { morphSlider.value_(0) };
+                });
+
+            Button(pw, Rect(287, 62, 88, 28))
+                .states_([["SNAP  B", Color(1.0, 0.7, 0.3), Color(0.24, 0.14, 0.04)]])
+                .font_(Font.sansSerif(10, true))
+                .action_({
+                    stateB = captureState.();
+                    bStatusLbl.string_("B: ●");
+                    morphSlider !? { morphSlider.value_(1) };
+                });
+
+            StaticText(pw, Rect(15, 100, 14, 18))
+                .string_("A")
+                .font_(Font.sansSerif(9, true))
+                .stringColor_(Color(0.5, 0.8, 1.0));
+
+            StaticText(pw, Rect(362, 100, 14, 18))
+                .string_("B")
+                .font_(Font.sansSerif(9, true))
+                .stringColor_(Color(1.0, 0.7, 0.3));
+
+            morphSlider = Slider(pw, Rect(34, 102, 324, 26))
+                .background_(Color(0.12, 0.12, 0.16))
+                .knobColor_(Color(0.65, 0.78, 1.0))
+                .value_(0)
+                .action_({ |sl|
+                    (stateA.notNil && stateB.notNil).if {
+                        recallState.(lerpState.(stateA, stateB, sl.value));
+                    };
+                });
+
+            // ── XY Pad ───────────────────────────────────────────────
+            StaticText(pw, Rect(15, 142, 360, 18))
+                .string_("── XY PAD ─── X: OSC A freq   Y: OSC B freq ──")
+                .font_(Font.sansSerif(9))
+                .stringColor_(Color(0.4, 0.6, 0.9));
+
+            // Sync pad position to current knob values on open
+            xyX = specOscA.unmap(knobs[\oscA].value);
+            xyY = specOscB.unmap(knobs[\oscB].value);
+
+            StaticText(pw, Rect(0, 165, 14, 300))
+                .string_("B\n↑")
+                .font_(Font.sansSerif(8))
+                .stringColor_(Color(0.4, 0.4, 0.5))
+                .align_(\center);
+
+            xyView = UserView(pw, Rect(18, 165, 357, 300))
+                .background_(Color(0.10, 0.10, 0.13))
+                .drawFunc_({
+                    var b = xyView.bounds;
+                    var cx = xyX * b.width;
+                    var cy = (1 - xyY) * b.height;
+                    Pen.color_(Color(0.18, 0.18, 0.24));
+                    [0.25, 0.5, 0.75].do { |t|
+                        Pen.line(Point(t * b.width, 0), Point(t * b.width, b.height));
+                        Pen.line(Point(0, t * b.height), Point(b.width, t * b.height));
+                    };
+                    Pen.stroke;
+                    Pen.color_(Color(0.35, 0.6, 0.95, 0.45));
+                    Pen.line(Point(cx, 0), Point(cx, b.height));
+                    Pen.line(Point(0, cy), Point(b.width, cy));
+                    Pen.stroke;
+                    Pen.color_(Color(0.55, 0.88, 1.0));
+                    Pen.fillOval(Rect(cx - 7, cy - 7, 14, 14));
+                })
+                .mouseDownAction_({ |v, x, y|
+                    updateXY.(
+                        (x / v.bounds.width).clip(0, 1),
+                        1 - (y / v.bounds.height).clip(0, 1)
+                    );
+                })
+                .mouseMoveAction_({ |v, x, y|
+                    updateXY.(
+                        (x / v.bounds.width).clip(0, 1),
+                        1 - (y / v.bounds.height).clip(0, 1)
+                    );
+                });
+
+            StaticText(pw, Rect(18, 470, 357, 14))
+                .string_("← OSC A  low                                          high →")
+                .font_(Font.sansSerif(8))
+                .stringColor_(Color(0.4, 0.4, 0.5))
+                .align_(\center);
+
+            // ── Gesture Loop ─────────────────────────────────────────
+            StaticText(pw, Rect(15, 492, 360, 16))
+                .string_("── GESTURE LOOP ─────────────────────────────")
+                .font_(Font.sansSerif(9))
+                .stringColor_(Color(0.4, 0.6, 0.9));
+
+            recBtn = Button(pw, Rect(18, 512, 80, 28))
+                .states_([
+                    ["● REC",   Color(1.0, 0.35, 0.35), Color(0.20, 0.08, 0.08)],
+                    ["■ STOP",  Color(1.0, 0.65, 0.65), Color(0.25, 0.10, 0.10)]
+                ])
+                .font_(Font.sansSerif(9, true))
+                .action_({ |btn|
+                    if(btn.value == 1) {
+                        loopBtn !? { loopBtn.value_(0) };
+                        playRoutine !? { playRoutine.stop; playRoutine = nil };
+                        gesture     = [];
+                        lastRecTime = 0;
+                        recActive   = true;
+                        gestureStatusLbl !? { gestureStatusLbl.string_("● rec...") };
+                    } {
+                        recActive = false;
+                        {
+                            var dur = gesture.collect({ |p| p[0] }).sum;
+                            gestureStatusLbl !? {
+                                gestureStatusLbl.string_(gesture.size.asString ++ " pts  " ++ dur.round(0.01).asString ++ "s")
+                            };
+                        }.value;
+                    };
+                });
+
+            loopBtn = Button(pw, Rect(108, 512, 80, 28))
+                .states_([
+                    ["⟳ LOOP",  Color(0.3, 1.0, 0.5),  Color(0.08, 0.20, 0.10)],
+                    ["■ STOP",  Color(0.6, 1.0, 0.72), Color(0.10, 0.25, 0.12)]
+                ])
+                .font_(Font.sansSerif(9, true))
+                .action_({ |btn|
+                    if(btn.value == 1) {
+                        if(gesture.size > 0) {
+                            if(recActive) {
+                                recActive = false;
+                                recBtn !? { recBtn.value_(0) };
+                            };
+                            playRoutine = Routine({
+                                {
+                                    gesture.do { |p| p[0].wait; updateXY.(p[1], p[2]) };
+                                }.loop;
+                            }).play(AppClock);
+                            gestureStatusLbl !? { gestureStatusLbl.string_("⟳ looping") };
+                        } {
+                            btn.value_(0);
+                        };
+                    } {
+                        playRoutine !? { playRoutine.stop; playRoutine = nil };
+                        {
+                            var dur = gesture.collect({ |p| p[0] }).sum;
+                            gestureStatusLbl !? {
+                                gestureStatusLbl.string_(gesture.size.asString ++ " pts  " ++ dur.round(0.01).asString ++ "s")
+                            };
+                        }.value;
+                    };
+                });
+
+            Button(pw, Rect(198, 512, 80, 28))
+                .states_([["✕ CLEAR", Color(0.75, 0.55, 0.55), Color(0.18, 0.12, 0.12)]])
+                .font_(Font.sansSerif(9, true))
+                .action_({
+                    playRoutine !? { playRoutine.stop; playRoutine = nil };
+                    recActive = false;
+                    gesture   = [];
+                    recBtn  !? { recBtn.value_(0)  };
+                    loopBtn !? { loopBtn.value_(0) };
+                    gestureStatusLbl !? { gestureStatusLbl.string_("—") };
+                });
+
+            gestureStatusLbl = StaticText(pw, Rect(288, 516, 90, 20))
+                .string_("—")
+                .font_(Font.monospace(9))
+                .stringColor_(Color(0.5, 0.7, 1.0))
+                .align_(\right);
+
+            pw.onClose = {
+                playRoutine !? { playRoutine.stop; playRoutine = nil };
+                performWin = nil
+            };
+            pw
+        };
+
         // Bottom buttons
         Button(win, Rect(20, 722, 120, 22))
             .states_([["⚡ Randomize", Color(1, 0.9, 0.2), Color(0.14, 0.13, 0.08)]])
@@ -300,8 +566,24 @@ var dir = thisProcess.nowExecutingPath.dirname;
                 synth !? { synth.set(\chaosSource, 0) };
             });
 
+        // Performance window toggle
+        Button(win, Rect(260, 722, 85, 22))
+            .states_([
+                ["◈ PERFORM", Color(0.55, 1.0, 0.72), Color(0.08, 0.20, 0.12)],
+                ["◈ PERFORM", Color(1.0,  0.85, 0.3),  Color(0.20, 0.15, 0.04)]
+            ])
+            .font_(Font.sansSerif(10, true))
+            .action_({ |b|
+                if(b.value == 1) {
+                    performWin !? { performWin.close };
+                    performWin = openPerformWin.();
+                } {
+                    performWin !? { performWin.close; performWin = nil };
+                };
+            });
+
         // FX window toggle
-        Button(win, Rect(260, 722, 70, 22))
+        Button(win, Rect(355, 722, 70, 22))
             .states_([
                 ["⚙ FX",  Color(0.75, 0.55, 1.0), Color(0.12, 0.08, 0.20)],
                 ["⚙ FX",  Color(1.0,  0.85, 0.3),  Color(0.20, 0.15, 0.04)]
@@ -524,6 +806,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
             ~benjoBus.free;          ~benjoBus       = nil;
             presetWin.close;
             fxWin !? { fxWin.close };
+            performWin !? { performWin.close };
         };
 
     }.defer;
