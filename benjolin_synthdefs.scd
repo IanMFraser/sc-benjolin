@@ -214,10 +214,10 @@ ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
 }).add;
 
 SynthDef(\resonator, {
-| bus=0, resOn=0, resMix=0.5,
+| bus=0, resOn=0,
   freqA=200,  freqB=500,  freqC=1200, freqD=3000,
   decayA=0.17, decayB=0.18, decayC=0.15, decayD=0.13,
-  ampA=0.07,  ampB=0.13,  ampC=0.11,  ampD=0.08,
+  ampA=0.07,  ampB=0.03,  ampC=0.01,  ampD=0.08,
   polA=1,     polB=1,     polC=1,     polD=1 |
 
     var sig  = In.ar(bus, 2);
@@ -235,7 +235,7 @@ SynthDef(\resonator, {
     // LagUD: fast attack (0.05s snap on) / slow release (2s ring-out when bypassed).
     var wet  = (rA + rB + rC + rD).tanh;
     var gate = LagUD.kr(resOn, 0.05, 2.0);
-    ReplaceOut.ar(bus, sig + (wet ! 2 * gate * resMix.lag(0.05)));
+    ReplaceOut.ar(bus, sig + (wet ! 2 * gate));
 
 }).add;
 

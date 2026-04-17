@@ -58,7 +58,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
             reverbOn: 0, reverbRoom: 0.6, reverbDamp: 0.5, reverbMix: 0.3,
             eqOn: 0, eqGains: Array.fill(31, 0.5),  // 0.5 = 0 dB (centre)
             // Resonator — 4-band Ringz inspired by Xaoc Oradea
-            resOn: 0, resMix: 0.5,
+            resOn: 0,
             freqA: 200,  freqB: 500,  freqC: 1200, freqD: 3000,
             decayA: 0.17, decayB: 0.18, decayC: 0.15, decayD: 0.13,
             ampA: 0.07,   ampB: 0.13,   ampC: 0.11,   ampD: 0.08,
@@ -553,7 +553,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
                     fs[p] !? { ~benjoEQ !? { ~benjoEQ.set(p, fs[p]) } };
                 };
                 // Resonator continuous params
-                [\resOn, \resMix, \freqA, \freqB, \freqC, \freqD,
+                [\resOn, \freqA, \freqB, \freqC, \freqD,
                  \decayA, \decayB, \decayC, \decayD,
                  \ampA, \ampB, \ampC, \ampD].do { |p|
                     fs[p] !? { ~benjoResonator !? { ~benjoResonator.set(p, fs[p]) } };

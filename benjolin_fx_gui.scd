@@ -241,7 +241,6 @@
     // Inspired by Xaoc Oradea quadruple voltage-controlled resonator.
     mkFXLabel.("── RESONATOR ─── 4-band Ringz ──────────", 15, 80);
     mkOnBtn.(\resOn, 15, 96, { ~benjoResonator });
-    mkFXKnob.(\resMix, 0, 1.0, \lin, 0.001, 0.5, 100, 80, { ~benjoResonator });
 
     // Band column headers
     ["A", "B", "C", "D"].do { |letter, i|
