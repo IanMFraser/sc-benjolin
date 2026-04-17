@@ -268,11 +268,12 @@ var dir = thisProcess.nowExecutingPath.dirname;
 
         // ── Performance window ───────────────────────────────────────
         openPerformWin = {
-            var pw, pwW = 390, pwH = 570;
+            var pw, pwW = 390, pwH = 610;
             var aStatusLbl, bStatusLbl, morphSlider;
             var xyView, xyX = 0.5, xyY = 0.5;
             var specOscA = ControlSpec(0.1, 10000, \exp);
             var specOscB = ControlSpec(0.1, 10000, \exp);
+            var xMinHz = 0.1, xMaxHz = 10000.0, yMinHz = 0.1, yMaxHz = 10000.0;
             var gesture = [];
             var recActive = false;
             var lastRecTime = 0;
@@ -440,13 +441,69 @@ var dir = thisProcess.nowExecutingPath.dirname;
                 .stringColor_(Color(0.4, 0.4, 0.5))
                 .align_(\center);
 
+            // ── XY Range ─────────────────────────────────────────────
+            {
+                var mkRangeBox = { |initVal, x, y, action|
+                    NumberBox(pw, Rect(x, y, 58, 22))
+                        .value_(initVal)
+                        .clipLo_(0.1).clipHi_(10000)
+                        .step_(1).scroll_step_(10)
+                        .font_(Font.monospace(9))
+                        .background_(Color(0.10, 0.10, 0.13))
+                        .stringColor_(Color(0.85, 0.9, 1.0))
+                        .normalColor_(Color(0.85, 0.9, 1.0))
+                        .action_(action);
+                };
+                var mkLbl = { |str, x, y, w=18|
+                    StaticText(pw, Rect(x, y, w, 22))
+                        .string_(str)
+                        .font_(Font.sansSerif(8))
+                        .stringColor_(Color(0.4, 0.4, 0.5))
+                        .align_(\center);
+                };
+
+                // X row
+                mkLbl.("X:", 18, 491, 18);
+                mkRangeBox.(0.1,   40, 489, { |nb|
+                    xMinHz = nb.value.clip(0.1, xMaxHz - 1);
+                    specOscA.minval = xMinHz;
+                    xyX = specOscA.unmap(knobs[\oscA].value);
+                    xyView !? { xyView.refresh };
+                });
+                mkLbl.("–", 100, 491, 10);
+                mkRangeBox.(10000, 113, 489, { |nb|
+                    xMaxHz = nb.value.clip(xMinHz + 1, 10000);
+                    specOscA.maxval = xMaxHz;
+                    xyX = specOscA.unmap(knobs[\oscA].value);
+                    xyView !? { xyView.refresh };
+                });
+                mkLbl.("Hz", 175, 491, 20);
+
+                // Y row
+                mkLbl.("Y:", 205, 491, 18);
+                mkRangeBox.(0.1,   227, 489, { |nb|
+                    yMinHz = nb.value.clip(0.1, yMaxHz - 1);
+                    specOscB.minval = yMinHz;
+                    xyY = specOscB.unmap(knobs[\oscB].value);
+                    xyView !? { xyView.refresh };
+                });
+                mkLbl.("–", 288, 491, 10);
+                mkRangeBox.(10000, 301, 489, { |nb|
+                    yMaxHz = nb.value.clip(yMinHz + 1, 10000);
+                    specOscB.maxval = yMaxHz;
+                    xyY = specOscB.unmap(knobs[\oscB].value);
+                    xyView !? { xyView.refresh };
+                });
+                mkLbl.("Hz", 363, 491, 20);
+            }.value;
+
             // ── Gesture Loop ─────────────────────────────────────────
-            StaticText(pw, Rect(15, 492, 360, 16))
+            StaticText(pw, Rect(15, 524, 360, 16))
                 .string_("── GESTURE LOOP ─────────────────────────────")
                 .font_(Font.sansSerif(9))
                 .stringColor_(Color(0.4, 0.6, 0.9));
 
-            recBtn = Button(pw, Rect(18, 512, 80, 28))
+            recBtn = Button(pw, Rect(18, 544, 80, 28))
                 .states_([
                     ["● REC",   Color(1.0, 0.35, 0.35), Color(0.20, 0.08, 0.08)],
                     ["■ STOP",  Color(1.0, 0.65, 0.65), Color(0.25, 0.10, 0.10)]
@@ -471,7 +528,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
                     };
                 });
 
-            loopBtn = Button(pw, Rect(108, 512, 80, 28))
+            loopBtn = Button(pw, Rect(108, 544, 80, 28))
                 .states_([
                     ["⟳ LOOP",  Color(0.3, 1.0, 0.5),  Color(0.08, 0.20, 0.10)],
                     ["■ STOP",  Color(0.6, 1.0, 0.72), Color(0.10, 0.25, 0.12)]
@@ -504,7 +561,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
                     };
                 });
 
-            Button(pw, Rect(198, 512, 80, 28))
+            Button(pw, Rect(198, 544, 80, 28))
                 .states_([["✕ CLEAR", Color(0.75, 0.55, 0.55), Color(0.18, 0.12, 0.12)]])
                 .font_(Font.sansSerif(9, true))
                 .action_({
@@ -516,7 +573,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
                     gestureStatusLbl !? { gestureStatusLbl.string_("—") };
                 });
 
-            gestureStatusLbl = StaticText(pw, Rect(288, 516, 90, 20))
+            gestureStatusLbl = StaticText(pw, Rect(288, 548, 90, 20))
                 .string_("—")
                 .font_(Font.monospace(9))
                 .stringColor_(Color(0.5, 0.7, 1.0))
