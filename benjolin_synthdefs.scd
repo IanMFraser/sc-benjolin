@@ -214,28 +214,28 @@ ReplaceOut.ar(bus, sig + ((processed - sig) * eqOn.lag(0.05)));
 }).add;
 
 SynthDef(\resonator, {
-| bus=0, resOn=0,
+| bus=0, resOn=0, resMix=0.5,
   freqA=200,  freqB=500,  freqC=1200, freqD=3000,
-  decayA=1.0, decayB=0.8, decayC=0.5, decayD=0.3,
-  ampA=0.3,   ampB=0.3,   ampC=0.3,   ampD=0.3,
+  decayA=0.17, decayB=0.18, decayC=0.15, decayD=0.13,
+  ampA=0.07,  ampB=0.13,  ampC=0.11,  ampD=0.08,
   polA=1,     polB=1,     polC=1,     polD=1 |
 
     var sig  = In.ar(bus, 2);
     var mono = (sig[0] + sig[1]) * 0.5;
 
-    // Four parallel Ringz (resonant bandpass) filters — inspired by Xaoc Oradea.
-    // Ringz has built-in gain compensation: peak level stays constant as decay grows.
-    // polA/B/C/D are ±1; phase cancellation between bands shapes the summed response.
-    var rA = Ringz.ar(mono, freqA.clip(20, 10000), decayA) * ampA.lag(0.05) * polA;
-    var rB = Ringz.ar(mono, freqB.clip(20, 10000), decayB) * ampB.lag(0.05) * polB;
-    var rC = Ringz.ar(mono, freqC.clip(20, 10000), decayC) * ampC.lag(0.05) * polC;
-    var rD = Ringz.ar(mono, freqD.clip(20, 10000), decayD) * ampD.lag(0.05) * polD;
+    // Four parallel Ringz filters. tanh per-band before amplitude scaling keeps
+    // each band bounded regardless of how hard the Benjolin drives a resonant freq —
+    // without it, Ringz gain ≈ freq×decay/2 which can reach 100× for long decays.
+    var rA = Ringz.ar(mono, freqA.clip(20, 10000), decayA).tanh * ampA.lag(0.05) * polA;
+    var rB = Ringz.ar(mono, freqB.clip(20, 10000), decayB).tanh * ampB.lag(0.05) * polB;
+    var rC = Ringz.ar(mono, freqC.clip(20, 10000), decayC).tanh * ampC.lag(0.05) * polC;
+    var rD = Ringz.ar(mono, freqD.clip(20, 10000), decayD).tanh * ampD.lag(0.05) * polD;
 
     // Soft-saturate the summed bands (mirrors Oradea's soft-saturation on sum out).
     // LagUD: fast attack (0.05s snap on) / slow release (2s ring-out when bypassed).
     var wet  = (rA + rB + rC + rD).tanh;
     var gate = LagUD.kr(resOn, 0.05, 2.0);
-    ReplaceOut.ar(bus, sig + (wet ! 2 * gate));
+    ReplaceOut.ar(bus, sig + (wet ! 2 * gate * resMix.lag(0.05)));
 
 }).add;
 

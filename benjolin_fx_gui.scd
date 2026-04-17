@@ -241,6 +241,7 @@
     // Inspired by Xaoc Oradea quadruple voltage-controlled resonator.
     mkFXLabel.("── RESONATOR ─── 4-band Ringz ──────────", 15, 80);
     mkOnBtn.(\resOn, 15, 96, { ~benjoResonator });
+    mkFXKnob.(\resMix, 0, 1.0, \lin, 0.001, 0.5, 100, 80, { ~benjoResonator });
 
     // Band column headers
     ["A", "B", "C", "D"].do { |letter, i|
@@ -264,12 +265,13 @@
     {
         var bands   = ["A", "B", "C", "D"];
         var freqDefs  = [200, 500, 1200, 3000];
-        var decayDefs = [1.0, 0.8, 0.5, 0.3];
+        var decayDefs = [0.17, 0.18, 0.15, 0.13];
+        var ampDefs   = [0.07, 0.13, 0.11, 0.08];
         bands.do { |band, i|
             var col_x = 90 + (i * 95);
             mkFXKnob.(("freq"  ++ band).asSymbol, 20,   10000, \exp, 0,     freqDefs[i],  col_x, 152, { ~benjoResonator });
             mkFXKnob.(("decay" ++ band).asSymbol, 0.01, 8.0,   \exp, 0,     decayDefs[i], col_x, 246, { ~benjoResonator });
-            mkFXKnob.(("amp"   ++ band).asSymbol, 0,    1.0,   \lin, 0.001, 0.3,          col_x, 340, { ~benjoResonator });
+            mkFXKnob.(("amp"   ++ band).asSymbol, 0,    1.0,   \lin, 0.001, ampDefs[i],   col_x, 340, { ~benjoResonator });
             mkPolBtn.(band, col_x, 436);
         };
     }.value;
