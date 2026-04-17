@@ -392,6 +392,23 @@ Because the oscillator ratio determines the Rungler pattern, diagonal movement (
 
 The main OSC A and OSC B knobs update in real time as you drag the pad, and changes are sent to the live synth simultaneously.
 
+### Gesture Loop
+
+Below the XY pad is a gesture recorder that captures your movements and loops them back with original timing.
+
+| Control | Function |
+| ------- | -------- |
+| **● REC** | Start recording. Every mouse move on the pad is timestamped and stored. Click again (■ STOP) to finish. |
+| **⟳ LOOP** | Play the recorded gesture back as a continuous loop with its original timing. Click again (■ STOP) to halt. |
+| **✕ CLEAR** | Stop playback and erase the recorded gesture. |
+
+The status label (right of the buttons) tracks the current state: `—` when empty, `● rec...` while recording, `N pts Xs` when a gesture is stored, and `⟳ looping` during playback.
+
+A few tips:
+- Short, decisive gestures loop most musically — a 2–4 second sweep that starts and ends near the same point will feel seamless.
+- Hitting **⟳ LOOP** while still recording auto-stops the recording first.
+- Closing the performance window stops any active loop.
+
 ---
 
 ## Utility Buttons
