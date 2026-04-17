@@ -349,6 +349,51 @@ The auto-save file lives at:
 
 ---
 
+## Performance Tools
+
+Click **◈ PERFORM** in the bottom bar to open the performance window. It provides two tools designed for live improvisation: an A/B morph and an XY pad.
+
+---
+
+### A/B Morph
+
+Smoothly interpolates all patch parameters between two stored snapshots.
+
+**Workflow:**
+
+1. Dial in a sound you want as one extreme — use any combination of knobs, chaos settings, filter mode, routes
+2. Click **SNAP A** — the current state is frozen into slot A (status shows `A: ●`)
+3. Change the patch however you like — a completely different texture, a quieter state, a different chaos source
+4. Click **SNAP B** — the second state is frozen into slot B
+5. Drag the morph slider — left end plays A, right end plays B, anywhere between is a live blend of every parameter simultaneously
+
+All continuous parameters (oscillator frequencies, rungler depths, mod depths, chaos depth, amp, pan, etc.) interpolate linearly. Discrete parameters (filter mode, chaos source, loop switch, mod routes) snap at the slider midpoint.
+
+**Tips:**
+
+- A and B are independent of the Preset Matrix — you can freely recall presets while keeping your morph snapshots
+- Snapping A or B while the slider is at an intermediate position captures the current morphed state, not the original preset — useful for gradually drifting away from a known patch
+- The morph has no effect until both A and B are snapped
+
+---
+
+### XY Pad
+
+A two-dimensional touch surface that simultaneously controls both oscillator frequencies — the most expressive parameter pair in the Benjolin.
+
+| Axis | Parameter | Range          |
+| ---- | --------- | -------------- |
+| X    | OSC A     | 0.1 – 10,000 Hz (exponential) |
+| Y    | OSC B     | 0.1 – 10,000 Hz (exponential) |
+
+Drag anywhere on the pad to move both frequencies at once. The pad opens with the cursor already positioned at the current knob values, so your first drag is a continuation rather than a jump.
+
+Because the oscillator ratio determines the Rungler pattern, diagonal movement (changing both simultaneously) explores ratio space directly — more musically useful than adjusting one frequency at a time. Slow diagonal sweeps will cycle through locked, drifting, and chaotic Rungler states.
+
+The main OSC A and OSC B knobs update in real time as you drag the pad, and changes are sent to the live synth simultaneously.
+
+---
+
 ## Utility Buttons
 
 | Button           | Action                                                                                                                                       |
