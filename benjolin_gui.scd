@@ -268,11 +268,16 @@ var dir = thisProcess.nowExecutingPath.dirname;
 
         // ── Performance window ───────────────────────────────────────
         openPerformWin = {
-            var pw, pwW = 390, pwH = 510;
+            var pw, pwW = 390, pwH = 570;
             var aStatusLbl, bStatusLbl, morphSlider;
             var xyView, xyX = 0.5, xyY = 0.5;
             var specOscA = ControlSpec(0.1, 10000, \exp);
             var specOscB = ControlSpec(0.1, 10000, \exp);
+            var gesture = [];
+            var recActive = false;
+            var lastRecTime = 0;
+            var playRoutine = nil;
+            var gestureStatusLbl, recBtn, loopBtn;
 
             var lerpState = { |a, b, t|
                 var result = ();
@@ -308,6 +313,13 @@ var dir = thisProcess.nowExecutingPath.dirname;
                 knobs[\oscA] !? { |k| k.value_(valA) };
                 knobs[\oscB] !? { |k| k.value_(valB) };
                 synth !? { synth.set(\oscA, valA, \oscB, valB) };
+                if(recActive) {
+                    var now = Process.elapsedTime;
+                    var dt  = if(gesture.isEmpty) { 0 } { now - lastRecTime };
+                    gesture      = gesture.add([dt, x01, y01]);
+                    lastRecTime  = now;
+                    gestureStatusLbl !? { gestureStatusLbl.string_("● " ++ gesture.size.asString ++ " pts") };
+                };
                 xyView !? { xyView.refresh };
             };
 
@@ -428,7 +440,92 @@ var dir = thisProcess.nowExecutingPath.dirname;
                 .stringColor_(Color(0.4, 0.4, 0.5))
                 .align_(\center);
 
-            pw.onClose = { performWin = nil };
+            // ── Gesture Loop ─────────────────────────────────────────
+            StaticText(pw, Rect(15, 492, 360, 16))
+                .string_("── GESTURE LOOP ─────────────────────────────")
+                .font_(Font.sansSerif(9))
+                .stringColor_(Color(0.4, 0.6, 0.9));
+
+            recBtn = Button(pw, Rect(18, 512, 80, 28))
+                .states_([
+                    ["● REC",   Color(1.0, 0.35, 0.35), Color(0.20, 0.08, 0.08)],
+                    ["■ STOP",  Color(1.0, 0.65, 0.65), Color(0.25, 0.10, 0.10)]
+                ])
+                .font_(Font.sansSerif(9, true))
+                .action_({ |btn|
+                    if(btn.value == 1) {
+                        loopBtn !? { loopBtn.value_(0) };
+                        playRoutine !? { playRoutine.stop; playRoutine = nil };
+                        gesture     = [];
+                        lastRecTime = 0;
+                        recActive   = true;
+                        gestureStatusLbl !? { gestureStatusLbl.string_("● rec...") };
+                    } {
+                        recActive = false;
+                        {
+                            var dur = gesture.collect({ |p| p[0] }).sum;
+                            gestureStatusLbl !? {
+                                gestureStatusLbl.string_(gesture.size.asString ++ " pts  " ++ dur.round(0.01).asString ++ "s")
+                            };
+                        }.value;
+                    };
+                });
+
+            loopBtn = Button(pw, Rect(108, 512, 80, 28))
+                .states_([
+                    ["⟳ LOOP",  Color(0.3, 1.0, 0.5),  Color(0.08, 0.20, 0.10)],
+                    ["■ STOP",  Color(0.6, 1.0, 0.72), Color(0.10, 0.25, 0.12)]
+                ])
+                .font_(Font.sansSerif(9, true))
+                .action_({ |btn|
+                    if(btn.value == 1) {
+                        if(gesture.size > 0) {
+                            if(recActive) {
+                                recActive = false;
+                                recBtn !? { recBtn.value_(0) };
+                            };
+                            playRoutine = Routine({
+                                {
+                                    gesture.do { |p| p[0].wait; updateXY.(p[1], p[2]) };
+                                }.loop;
+                            }).play(AppClock);
+                            gestureStatusLbl !? { gestureStatusLbl.string_("⟳ looping") };
+                        } {
+                            btn.value_(0);
+                        };
+                    } {
+                        playRoutine !? { playRoutine.stop; playRoutine = nil };
+                        {
+                            var dur = gesture.collect({ |p| p[0] }).sum;
+                            gestureStatusLbl !? {
+                                gestureStatusLbl.string_(gesture.size.asString ++ " pts  " ++ dur.round(0.01).asString ++ "s")
+                            };
+                        }.value;
+                    };
+                });
+
+            Button(pw, Rect(198, 512, 80, 28))
+                .states_([["✕ CLEAR", Color(0.75, 0.55, 0.55), Color(0.18, 0.12, 0.12)]])
+                .font_(Font.sansSerif(9, true))
+                .action_({
+                    playRoutine !? { playRoutine.stop; playRoutine = nil };
+                    recActive = false;
+                    gesture   = [];
+                    recBtn  !? { recBtn.value_(0)  };
+                    loopBtn !? { loopBtn.value_(0) };
+                    gestureStatusLbl !? { gestureStatusLbl.string_("—") };
+                });
+
+            gestureStatusLbl = StaticText(pw, Rect(288, 516, 90, 20))
+                .string_("—")
+                .font_(Font.monospace(9))
+                .stringColor_(Color(0.5, 0.7, 1.0))
+                .align_(\right);
+
+            pw.onClose = {
+                playRoutine !? { playRoutine.stop; playRoutine = nil };
+                performWin = nil
+            };
             pw
         };
 
